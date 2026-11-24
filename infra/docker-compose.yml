@@ -1,0 +1,89 @@
+# Local stack for pg_flagsmith development and the demos:
+#   flagsmith       self-hosted Flagsmith (API + UI) on http://localhost:8000, experimentation on
+#   flagsmith-db    Flagsmith's own Postgres
+#   appdb           the application database: Supabase's Postgres image (pg_tle preinstalled)
+#   sync            pg-flagsmith sync: mirrors Flagsmith environments into appdb (webhook + poll)
+#
+#   docker compose -f infra/docker-compose.yml up -d flagsmith appdb
+#   python demos/seed_flagsmith.py          # creates the demo project, prints the keys
+#   FLAGSMITH_SERVER_KEYS=ser.xxx,ser.yyy docker compose -f infra/docker-compose.yml up -d sync
+name: pgflagsmith
+
+x-flagsmith-env: &flagsmith-env
+  DATABASE_URL: postgresql://postgres:password@flagsmith-db:5432/flagsmith
+  USE_POSTGRES_FOR_ANALYTICS: 'true'
+  ENVIRONMENT: production
+  DJANGO_ALLOWED_HOSTS: '*'
+  FLAGSMITH_DOMAIN: localhost:8000
+  DJANGO_SECRET_KEY: pg-flagsmith-local-dev-only
+  WAREHOUSE_CREDENTIALS_SECRET: pg-flagsmith-local-dev-only
+  ALLOW_REGISTRATION_WITHOUT_INVITE: 'true'
+  EXPERIMENTATION_ENABLED: 'true'
+  TASK_RUN_METHOD: SEPARATE_THREAD
+
+services:
+  flagsmith-db:
+    image: postgres:15
+    environment:
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: flagsmith
+    volumes:
+      - flagsmith-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -d flagsmith -U postgres']
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  flagsmith-migrate:
+    image: flagsmith/flagsmith:2.295.2
+    command: [migrate]
+    environment: *flagsmith-env
+    depends_on:
+      flagsmith-db:
+        condition: service_healthy
+
+  flagsmith:
+    image: flagsmith/flagsmith:2.295.2
+    command: [serve]
+    environment: *flagsmith-env
+    ports:
+      - 127.0.0.1:8000:8000
+    depends_on:
+      flagsmith-migrate:
+        condition: service_completed_successfully
+
+  appdb:
+    image: supabase/postgres:17.12.0.002
+    environment:
+      POSTGRES_PASSWORD: pgfs
+    ports:
+      - 127.0.0.1:55433:5432
+    volumes:
+      - appdb-data:/var/lib/postgresql/data
+      - ../extension/dist:/pg_flagsmith:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -h 127.0.0.1']
+      interval: 2s
+      timeout: 2s
+      retries: 60
+
+  sync:
+    build:
+      context: ..
+      dockerfile: tools/Dockerfile
+    command: [pg-flagsmith, serve, --poll, '30', --port, '8080']
+    environment:
+      PGFS_DSN: postgresql://postgres:pgfs@appdb:5432/postgres
+      FLAGSMITH_API_URL: http://flagsmith:8000/api/v1/
+      FLAGSMITH_SERVER_KEYS: ${FLAGSMITH_SERVER_KEYS:-}
+      FLAGSMITH_WEBHOOK_SECRET: ${FLAGSMITH_WEBHOOK_SECRET:-}
+    ports:
+      - 127.0.0.1:8080:8080
+    depends_on:
+      appdb:
+        condition: service_healthy
+
+volumes:
+  flagsmith-pgdata:
+  appdb-data:

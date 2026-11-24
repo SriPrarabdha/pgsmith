@@ -1,0 +1,38 @@
+name: CI
+on: [push, pull_request]
+jobs:
+  conformance:
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres: ['14', '15', '16', '17', '18']
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres }}
+        env: { POSTGRES_PASSWORD: pgfs, POSTGRES_DB: pgfs }
+        ports: ['5432:5432']
+        options: --health-cmd pg_isready --health-interval 2s --health-retries 30
+    env:
+      PGFS_DSN: postgresql://postgres:pgfs@localhost:5432/pgfs
+      PGFS_FUZZ_EXAMPLES: 2000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv venv --python 3.12 && uv pip install -e '.[dev]'
+      - run: python extension/build.py
+      - name: install the extension into the service container
+        run: |
+          C=$(docker ps -q --filter ancestor=postgres:${{ matrix.postgres }})
+          S=$(docker exec $C pg_config --sharedir)
+          docker cp extension/dist/pg_flagsmith--$(cat extension/VERSION).sql $C:$S/extension/
+          docker cp extension/dist/pg_flagsmith.control $C:$S/extension/
+          docker exec $C psql -U postgres -d pgfs -c 'CREATE EXTENSION pg_flagsmith'
+      - run: .venv/bin/pytest tests -p no:warnings
+  supabase-pgtle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv venv --python 3.12 && uv pip install -e '.[dev]'
+      - run: scripts/matrix.sh supabase

@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Reinstall pg_flagsmith (pg_tle) in the compose app database and re-sync Flagsmith.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+python3 extension/build.py >/dev/null
+APPDB=${APPDB:-postgresql://postgres:pgfs@127.0.0.1:55433/postgres}
+.venv/bin/python - "$APPDB" <<'PY'
+import sys, psycopg
+with psycopg.connect(sys.argv[1], autocommit=True) as c:
+    c.execute("DROP EXTENSION IF EXISTS pg_flagsmith CASCADE")
+    if c.execute("SELECT count(*) FROM pgtle.available_extensions() WHERE name = 'pg_flagsmith'").fetchone()[0]:
+        c.execute("SELECT pgtle.uninstall_extension('pg_flagsmith')")
+PY
+.venv/bin/pg-flagsmith install --tle --dsn "$APPDB"
+set -a; . demos/.env; set +a
+.venv/bin/pg-flagsmith sync --dsn "$APPDB" --api "$FLAGSMITH_API_URL" --server-key "$PROD_SERVER_KEY" --server-key "$STAGING_SERVER_KEY" 2>&1 | grep -v INFO

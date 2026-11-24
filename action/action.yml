@@ -1,0 +1,66 @@
+name: FlagShift plan
+description: >
+  terraform plan for Flagsmith flag changes. Evaluates the live and the proposed
+  configuration over your real users inside Postgres (pg_flagsmith) and posts who
+  changes, and why, as a pull-request comment.
+branding:
+  icon: flag
+  color: purple
+inputs:
+  database-url:
+    description: Postgres connection string of a database with pg_flagsmith and a synced environment (use a read replica)
+    required: true
+  environment:
+    description: Target environment (key, alias or name), e.g. production
+    required: true
+  population:
+    description: Table or view with identifier text and traits jsonb columns
+    required: true
+  patch:
+    description: Path to an RFC 6902 JSON patch against the target's live configuration
+    required: false
+  promote-from:
+    description: Source environment to promote instead of a patch, e.g. staging
+    required: false
+  comment:
+    description: Post (or update) a pull-request comment with the plan
+    default: 'true'
+  fail-on-changes:
+    description: Fail the step when the plan changes any flag
+    default: 'false'
+outputs:
+  changes:
+    description: '"true" when the plan changes at least one flag'
+    value: ${{ steps.plan.outputs.changes }}
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+    - shell: bash
+      run: pip install --quiet "${{ github.action_path }}/.."
+    - id: plan
+      shell: bash
+      env:
+        PGFS_DSN: ${{ inputs.database-url }}
+      run: |
+        set +e
+        src=()
+        if [ -n "${{ inputs.patch }}" ]; then src=(--patch "${{ inputs.patch }}"); else src=(--promote-from "${{ inputs.promote-from }}"); fi
+        flagshift plan --env "${{ inputs.environment }}" "${src[@]}" --population "${{ inputs.population }}" --format markdown > flagshift-plan.md
+        rc=$?
+        cat flagshift-plan.md >> "$GITHUB_STEP_SUMMARY"
+        if [ $rc -eq 1 ]; then exit 1; fi
+        echo "changes=$([ $rc -eq 2 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+    - if: inputs.comment == 'true' && github.event_name == 'pull_request'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        { echo '<!-- flagshift-plan -->'; cat flagshift-plan.md; } > body.md
+        gh pr comment "${{ github.event.pull_request.number }}" --body-file body.md --edit-last 2>/dev/null \
+          || gh pr comment "${{ github.event.pull_request.number }}" --body-file body.md
+    - if: inputs.fail-on-changes == 'true' && steps.plan.outputs.changes == 'true'
+      shell: bash
+      run: echo "FlagShift: this change moves users; review the plan" && exit 1

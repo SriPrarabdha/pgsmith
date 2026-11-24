@@ -1,0 +1,5 @@
+comment = 'Flagsmith feature flag evaluation inside Postgres, with parity to the official engine'
+default_version = '0.1.0'
+relocatable = false
+superuser = false
+trusted = true

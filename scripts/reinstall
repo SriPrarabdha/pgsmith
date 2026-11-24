@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Rebuild pg_flagsmith and reinstall it in the dev container.
+set -euo pipefail
+# run docker directly when allowed, else through the docker group (sg)
+dock() { if docker info >/dev/null 2>&1; then bash -c "$*"; else sg docker -c "$*"; fi; }
+cd "$(dirname "$0")/.."
+python3 extension/build.py >/dev/null
+C=${PGFS_CONTAINER:-pgfs-dev}
+V=$(dock "docker exec $C pg_config --sharedir")
+dock "docker cp extension/dist/pg_flagsmith--$(cat extension/VERSION).sql $C:$V/extension/ && docker cp extension/dist/pg_flagsmith.control $C:$V/extension/"
+scripts/psql -qc "SET client_min_messages = warning; DROP EXTENSION IF EXISTS pg_flagsmith CASCADE; CREATE EXTENSION pg_flagsmith;" 2>&1 | grep -v -E "NOTICE|cascades|DETAIL|other objects" || true

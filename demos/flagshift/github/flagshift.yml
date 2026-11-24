@@ -1,0 +1,20 @@
+# Example workflow: plan every pull request that touches flag changes.
+# Copy to .github/workflows/flagshift.yml in the repository that holds your flag patches.
+name: FlagShift
+on:
+  pull_request:
+    paths: ['flags/**.json']
+permissions:
+  contents: read
+  pull-requests: write
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: your-org/pg-flagsmith/action@v0.1.0
+        with:
+          database-url: ${{ secrets.FLAGSHIFT_DATABASE_URL }}   # a read replica is fine
+          environment: production
+          population: app.users
+          patch: flags/production.json

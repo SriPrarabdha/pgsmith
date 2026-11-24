@@ -1,0 +1,11 @@
+demos/.env
+demos/.seed.json
+.venv/
+tests/.cache/
+__pycache__/
+.hypothesis/
+.pytest_cache/
+extension/dist/
+*.egg-info/
+bench/results/
+tests/fuzz/.last_run.json

@@ -1,0 +1,36 @@
+[project]
+name = "pgflagsmith"
+version = "0.1.0"
+description = "Tools for pg_flagsmith: sync, live parity check, FlagShift plan/apply, demos and conformance tests"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "BSD-3-Clause" }
+dependencies = [
+  "psycopg[binary]>=3.2",
+  "flagsmith==6.7.0",
+  "flagsmith-flag-engine==11.1.2",
+  "requests>=2.31",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8",
+  "pytest-xdist>=3.5",
+  "hypothesis>=6.100",
+  "json5>=0.9",
+]
+
+[project.scripts]
+pg-flagsmith = "pgflagsmith.cli:main"
+flagshift = "pgflagsmith.flagshift.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["tools/pgflagsmith"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

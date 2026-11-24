@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Run psql inside the dev container: scripts/psql [psql args]  (SQL on stdin works too)
+C=${PGFS_CONTAINER:-pgfs-dev}
+DB=${PGFS_DB:-pgfs}
+if docker info >/dev/null 2>&1; then
+  exec docker exec -i "$C" psql -X -v ON_ERROR_STOP=1 -U postgres -d "$DB" "$@"
+fi
+exec sg docker -c "docker exec -i $C psql -X -v ON_ERROR_STOP=1 -U postgres -d $DB $(printf '%q ' "$@")"
