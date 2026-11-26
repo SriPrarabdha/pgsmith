@@ -21,7 +21,7 @@ jobs:
       PGSMITH_FUZZ_EXAMPLES: 2000
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
-      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86  # v5
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d  # v10.4.0
       - run: uv venv --python 3.12 && uv pip install -e '.[dev]'
       - run: python extension/build.py
       - name: Install the extension into the service container
@@ -37,7 +37,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
-      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86  # v5
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d  # v10.4.0
       - run: uv venv --python 3.12 && uv pip install -e '.[dev]'
       - run: scripts/matrix.sh supabase | tee matrix.log && ! grep -E "INSTALL FAILED|[0-9]+ failed|[0-9]+ errors?\b" matrix.log
   audit:
@@ -45,6 +45,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
-      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86  # v5
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d  # v10.4.0
       - run: uv venv --python 3.12 && uv pip install -e '.[dev]'
       - run: make audit PY=.venv/bin/python
