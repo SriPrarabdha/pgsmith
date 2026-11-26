@@ -1,0 +1,30 @@
+[
+ {
+  "prompt": "$",
+  "command": "python demos/search_ab/simulate.py --users 3000 --via-queue",
+  "output": "  500 users, 1500 searches, 676 clicks, 162 add-to-carts (5s)\n  1000 users, 3000 searches, 1290 clicks, 305 add-to-carts (10s)\n  1500 users, 4500 searches, 1926 clicks, 453 add-to-carts (15s)\n  2000 users, 6000 searches, 2606 clicks, 604 add-to-carts (20s)\n  2500 users, 7500 searches, 3269 clicks, 742 add-to-carts (25s)\n  3000 users, 9000 searches, 3899 clicks, 899 add-to-carts (30s)\n16798 events queued: delivered by flagsmith.events_tick() (schedule_events) or `pgsmith events --once`\nsimulated 3000 users: {'searches': 9000, 'clicks': 3899, 'carts': 899}  (SIMULATED TRAFFIC)",
+  "ms": 30163,
+  "exit": 0
+ },
+ {
+  "prompt": "postgres=#",
+  "command": "SELECT queued, delivered FROM flagsmith.event_status();",
+  "output": "        env_key         | queued | delivered \n------------------------+--------+-----------\n Yg7Kqn6V4asgjrH3Y9JxcA |  16798 |        21\n(1 row)",
+  "ms": 54,
+  "exit": 0
+ },
+ {
+  "prompt": "postgres=#",
+  "command": "SELECT * FROM flagsmith.events_tick();",
+  "output": "        env_key         | batches | events |  outcome  \n------------------------+---------+--------+-----------\n Yg7Kqn6V4asgjrH3Y9JxcA |       1 |   1000 | delivered\n Yg7Kqn6V4asgjrH3Y9JxcA |       1 |   1000 | delivered\n Yg7Kqn6V4asgjrH3Y9JxcA |       1 |   1000 | delivered\n Yg7Kqn6V4asgjrH3Y9JxcA |       1 |   1000 | delivered\n Yg7Kqn6V4asgjrH3Y9JxcA |       1 |   1000 | delivered\n Yg7Kqn6V4asgjrH3Y9JxcA |       1 |   1000 | delivered\n Yg7Kqn6V4asgjrH3Y9JxcA |       1 |   1000 | delivered\n Yg7Kqn6V4asgjrH3Y9JxcA |       1 |   1000 | delivered\n Yg7Kqn6V4asgjrH3Y9JxcA |       1 |   1000 | delivered\n Yg7Kqn6V4asgjrH3Y9JxcA |       1 |   1000 | delivered\n Yg7Kqn6V4asgjrH3Y9JxcA |       1 |   1000 | delivered\n Yg7Kqn6V4asgjrH3Y9JxcA |       1 |   1000 | delivered\n Yg7Kqn6V4asgjrH3Y9JxcA |       1 |   1000 | delivered\n Yg7Kqn6V4asgjrH3Y9JxcA |       1 |   1000 | delivered\n Yg7Kqn6V4asgjrH3Y9JxcA |       1 |   1000 | delivered\n Yg7Kqn6V4asgjrH3Y9JxcA |       1 |   1000 | delivered\n Yg7Kqn6V4asgjrH3Y9JxcA |       1 |    798 | delivered\n(17 rows)",
+  "ms": 3834,
+  "exit": 0
+ },
+ {
+  "prompt": "postgres=#",
+  "command": "SELECT queued, delivered, deduplicated FROM flagsmith.event_status();",
+  "output": " queued | delivered | deduplicated \n--------+-----------+--------------\n      0 |     16819 |           10\n(1 row)",
+  "ms": 47,
+  "exit": 0
+ }
+]

@@ -1,0 +1,9 @@
+[
+ {
+  "prompt": "postgres=#",
+  "command": "SELECT feature, enabled, value, reason FROM flagsmith.flags('user-42', '{\"plan\": \"pro\", \"country\": \"IN\"}');",
+  "output": "Timing is on.\n    feature     | enabled |   value   |                    reason                     \n----------------+---------+-----------+-----------------------------------------------\n new_checkout   | t       | \"v2\"      | TARGETING_MATCH; segment=beta_testers\n pricing_banner | t       | \"summer\"  | DEFAULT\n dark_mode      | f       | null      | DEFAULT\n max_upload_mb  | t       | 25        | DEFAULT\n search_ranking | t       | \"control\" | TARGETING_MATCH; segment=experiment-1-rollout\n(5 rows)\n\nTime: 2.997 ms\n    feature     | enabled |   value   |                    reason                     \n----------------+---------+-----------+-----------------------------------------------\n new_checkout   | t       | \"v2\"      | TARGETING_MATCH; segment=beta_testers\n pricing_banner | t       | \"summer\"  | DEFAULT\n dark_mode      | f       | null      | DEFAULT\n max_upload_mb  | t       | 25        | DEFAULT\n search_ranking | t       | \"control\" | TARGETING_MATCH; segment=experiment-1-rollout\n(5 rows)\n\nTime: 1.332 ms",
+  "ms": 53,
+  "exit": 0
+ }
+]

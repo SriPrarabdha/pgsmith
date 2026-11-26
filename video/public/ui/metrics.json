@@ -1,0 +1,19 @@
+{
+ "file": "public/ui/metrics.mp4",
+ "frames": 134,
+ "wall0": 1795697903765.79,
+ "events": [
+  {
+   "name": "Search result clicked",
+   "t": 1.22
+  },
+  {
+   "name": "Add to cart",
+   "t": 2.586
+  },
+  {
+   "name": "Search latency (ms)",
+   "t": 3.97
+  }
+ ]
+}

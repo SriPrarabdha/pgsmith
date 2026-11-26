@@ -1,0 +1,58 @@
+[
+ {
+  "id": "cold",
+  "text": "This is a Flagsmith feature flag... evaluated inside Postgres. No SDK. No network call. Just SQL."
+ },
+ {
+  "id": "title",
+  "text": "Meet P G smith."
+ },
+ {
+  "id": "problem",
+  "text": "Your app reads flags through Flagsmith's SDK. But so much of your product lives in the database: search ranking, row-level security, nightly jobs, reports. None of it can see your flags. And every flip goes live for everyone, with no review step."
+ },
+ {
+  "id": "solution",
+  "text": "P G smith keeps a live replica of your Flagsmith environments inside Postgres, compiled into plain SQL. Flip a flag in Flagsmith... and Postgres has it in under a second. No extra service: the database syncs itself."
+ },
+ {
+  "id": "steps",
+  "text": "A Flagsmith experiment takes four steps. Let's run all four, from SQL."
+ },
+ {
+  "id": "step1",
+  "text": "Step one: a multivariate flag. Search ranking: control, or boosted by thirty-day sales, split fifty-fifty. In Postgres, one function call picks the arm, and the same query ranks with it. Two users. Two rankings. One query."
+ },
+ {
+  "id": "step2",
+  "text": "Step two: pick the metrics. Clicks and add to cart, with search latency as a guardrail, recorded straight from SQL."
+ },
+ {
+  "id": "step3",
+  "text": "Step three: split the traffic. Postgres queues the exposures and ships them to Flagsmith. Bucketing matches the SDK exactly: ten thousand identities, zero mismatches. Simulated traffic, real statistics: boosted lifts clicks twenty-three percent, add to cart sixty-four. Latency stays flat."
+ },
+ {
+  "id": "step4",
+  "text": "Step four: ship the winner. Complete the experiment in Flagsmith, roll out boosted to everyone, and the SQL never changes."
+ },
+ {
+  "id": "release",
+  "text": "A release is rarely one flag: ours also promotes a new checkout from staging. Flag Shift, a terraform plan for flags, runs both configurations over all hundred thousand users, and catches this: four thousand four hundred twenty-six enterprise accounts would lose their checkout."
+ },
+ {
+  "id": "twist",
+  "text": "And a twist: the same twenty-five percent rollout in staging and production picks different people. Only a quarter overlap. Flag Shift re-keys the plan, so it's exact."
+ },
+ {
+  "id": "apply",
+  "text": "Fix the order, and apply. Flagsmith updates, Postgres syncs, and a re-plan proves nothing else moved. And if Flagsmith goes down, Postgres keeps serving the last good configuration."
+ },
+ {
+  "id": "proof",
+  "text": "Same answers as Flagsmith? It passes all two hundred thirty of Flagsmith's engine tests, and matches the official engine on five thousand random configurations. And it's fast: a million users times fifty flags, in six seconds."
+ },
+ {
+  "id": "outro",
+  "text": "P G smith. Pure SQL, for Supabase, R D S, and any Postgres. Flagsmith flags, where your data lives."
+ }
+]

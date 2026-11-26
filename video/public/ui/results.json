@@ -1,0 +1,19 @@
+{
+ "file": "public/ui/results.mp4",
+ "frames": 209,
+ "wall0": 1795697914124.371,
+ "events": [
+  {
+   "name": "banner",
+   "t": 0.898
+  },
+  {
+   "name": "scroll",
+   "t": 3.036
+  },
+  {
+   "name": "table",
+   "t": 5.845
+  }
+ ]
+}

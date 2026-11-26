@@ -1,0 +1,23 @@
+[
+ {
+  "prompt": "postgres=#",
+  "command": "SELECT * FROM flagsmith.events_tick();",
+  "output": " env_key | batches | events | outcome \n---------+---------+--------+---------\n(0 rows)",
+  "ms": 52,
+  "exit": 0
+ },
+ {
+  "prompt": "postgres=#",
+  "command": "SELECT * FROM flagsmith.events_tick();",
+  "output": " env_key | batches | events | outcome \n---------+---------+--------+---------\n(0 rows)",
+  "ms": 49,
+  "exit": 0
+ },
+ {
+  "prompt": "postgres=#",
+  "command": "SELECT * FROM flagsmith.events_tick();",
+  "output": " env_key | batches | events | outcome \n---------+---------+--------+---------\n(0 rows)",
+  "ms": 47,
+  "exit": 0
+ }
+]

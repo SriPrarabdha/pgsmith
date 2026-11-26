@@ -1,0 +1,9 @@
+[
+ {
+  "prompt": "postgres=#",
+  "command": "SELECT s.title, p.sales_30d, s.arm\nFROM app.users u, shop.search(u.identifier, u.traits, 'wireless headphones', 5) WITH ORDINALITY s\nJOIN shop.products p ON p.id = s.product_id\nWHERE u.identifier = 'user-42' ORDER BY s.ordinality;",
+  "output": "           title            | sales_30d |   arm   \n----------------------------+-----------+---------\n Cotton Wireless Headphones |      1793 | boosted\n Ultra Wireless Headphones  |      1753 | boosted\n Bamboo Wireless Headphones |      1714 | boosted\n Wireless Mini Headphones   |      1793 | boosted\n Smart Wireless Headphones  |      1689 | boosted\n(5 rows)",
+  "ms": 56,
+  "exit": 0
+ }
+]

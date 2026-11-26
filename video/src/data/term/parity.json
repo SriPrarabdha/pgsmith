@@ -1,0 +1,9 @@
+[
+ {
+  "prompt": "$",
+  "command": "pgsmith parity --population \"SELECT identifier, traits FROM app.users\" --sample 10000",
+  "output": "parity OK: 10000 identities x flags = 100000 comparisons (environment Yg7Kqn6V4asgjrH3Y9JxcA, snapshot 11, 7.5s)",
+  "ms": 7599,
+  "exit": 0
+ }
+]

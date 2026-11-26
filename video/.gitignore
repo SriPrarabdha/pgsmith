@@ -1,0 +1,19 @@
+# generated or downloaded; see README.md for how to recreate each
+node_modules/
+out/
+# database dumps of the local stack (they contain Flagsmith server keys)
+backup/
+# venvs and model weights (Ming 3 GB, Whisper, UTMOS)
+tts/.venv*/
+tts/models/
+# upstream clones; Ming needs tts/patches/ming-istft-float32.patch applied
+tts/ming-tts/
+tts/breeze-tts/
+tts/__pycache__/
+# narration (tts/gen_ming.py) and music (music/score.py) are generated
+public/vo*/
+public/music/
+src/data/vo-*.json
+capture/shots/
+capture/out/
+*.frames/

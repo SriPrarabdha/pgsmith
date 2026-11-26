@@ -1,0 +1,23 @@
+[
+ {
+  "prompt": "$",
+  "command": "docker compose stop flagsmith",
+  "output": " Container pgsmith-flagsmith-1 Stopping \n Container pgsmith-flagsmith-1 Stopped ",
+  "ms": 2081,
+  "exit": 0
+ },
+ {
+  "prompt": "postgres=#",
+  "command": "SELECT name, last_outcome, consecutive_failures, left(last_error, 48) AS last_error FROM flagsmith.sync_status();",
+  "output": "    name    | last_outcome | consecutive_failures |            last_error             \n------------+--------------+----------------------+-----------------------------------\n production | error        |                    6 | Could not resolve host: flagsmith\n staging    | error        |                    6 | Could not resolve host: flagsmith\n(2 rows)",
+  "ms": 49,
+  "exit": 0
+ },
+ {
+  "prompt": "postgres=#",
+  "command": "SELECT feature, enabled, value, reason FROM flagsmith.flags('user-42', '{\"plan\": \"pro\", \"country\": \"IN\"}');",
+  "output": "    feature     | enabled |   value   |                reason                 \n----------------+---------+-----------+---------------------------------------\n new_checkout   | t       | \"v2\"      | TARGETING_MATCH; segment=beta_testers\n pricing_banner | t       | \"summer\"  | DEFAULT\n dark_mode      | f       | null      | DEFAULT\n max_upload_mb  | t       | 25        | DEFAULT\n search_ranking | t       | \"boosted\" | SPLIT; weight=100.0\n(5 rows)",
+  "ms": 49,
+  "exit": 0
+ }
+]

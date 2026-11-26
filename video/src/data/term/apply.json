@@ -1,0 +1,9 @@
+[
+ {
+  "prompt": "$",
+  "command": "flagshift apply --env production --promote-from staging --population app.users --yes",
+  "output": "flagshift plan  Staging → Production   population: app.users (100,000 identities)   snapshots 14 → 22\n\n~ max_upload_mb          24,782 users change (24.8%)\n    value \"100\" → \"250\"                            24,782 users   reason TARGETING_MATCH; segment=app_v3\n      e.g. user-100, user-9999\n~ pricing_banner         15,134 users change (15.1%)\n    value \"summer\" → \"diwali\"                      15,134 users   reason DEFAULT → TARGETING_MATCH; segment=india_mobile\n      e.g. 12345, vip-1\n~ new_checkout           8,496 users change (8.5%)\n    enabled off → on, value \"v1\" → \"v2\"             8,496 users   reason DEFAULT → TARGETING_MATCH; segment=quarter_rollout\n      e.g. user-10018, user42\n  ! cohort overlap: 91.3% of Staging's 74,207 targeted users are targeted the same way in Production\n= dark_mode              no users change\n  ! same rules, different people: only 25.0% of Staging's 25,023 targeted users are targeted in Production (splits hash environment-specific keys)\n= search_ranking         no users change\n\nPlan: 3 feature(s) change for 48,412 identity-flag pairs; 2 unchanged.  (evaluated in 4.41s inside Postgres)\n  applied create_override pricing_banner\n  applied create_override new_checkout\n  applied override max_upload_mb\nVerified: live snapshot 23 now matches the plan (re-plan shows no changes).",
+  "ms": 7137,
+  "exit": 0
+ }
+]

@@ -1,0 +1,5 @@
+[
+  {"op": "replace", "path": "/features/new_checkout/enabled", "value": false},
+  {"op": "replace", "path": "/segments/2/overrides/1/value", "value": "v2-enterprise"},
+  {"op": "replace", "path": "/features/max_upload_mb/value", "value": 25}
+]

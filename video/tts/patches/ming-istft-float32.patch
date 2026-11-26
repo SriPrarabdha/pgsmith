@@ -1,0 +1,14 @@
+diff --git a/audio_tokenizer/istft.py b/audio_tokenizer/istft.py
+index 8cb36fd..a1b3663 100644
+--- a/audio_tokenizer/istft.py
++++ b/audio_tokenizer/istft.py
+@@ -176,6 +176,7 @@ class ISTFTHead(FourierHead):
+         # phase = torch.atan2(y, x)
+         # S = mag * torch.exp(phase * 1j)
+         # better directly produce the complex value
+-        S = mag * (x + 1j * y)
++        # complex math in float32: newer torch would build a bfloat16 complex type CUDA can't multiply
++        S = mag.float() * torch.complex(x.float(), y.float())
+         audio, audio_buffer, window_buffer = self.istft(S, audio_buffer=audio_buffer, window_buffer=window_buffer, streaming=streaming, last_chunk=last_chunk)
+         return audio.unsqueeze(1),x_pred, audio_buffer, window_buffer
+\ No newline at end of file
