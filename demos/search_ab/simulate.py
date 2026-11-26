@@ -9,7 +9,7 @@ so the sales-boosted ranking has a modest real advantage to find.
 
     python demos/search_ab/simulate.py --users 3000
     python demos/search_ab/simulate.py --users 3000 --via-queue   # record in SQL (flagsmith.track_*),
-                                                                  # delivered by the database or pg-flagsmith events
+                                                                  # delivered by the database or pgsmith events
 """
 from __future__ import annotations
 
@@ -36,7 +36,7 @@ def attractiveness(sales: int) -> float:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--dsn", default=os.environ.get("PGFS_DSN"))
+    ap.add_argument("--dsn", default=os.environ.get("PGSMITH_DSN"))
     ap.add_argument("--users", type=int, default=3000)
     ap.add_argument("--searches-per-user", type=int, default=3)
     ap.add_argument("--seed", type=int, default=7)
@@ -115,7 +115,7 @@ def main() -> None:
         else:
             queued = conn.execute("SELECT coalesce(sum(queued), 0) FROM flagsmith.event_status()").fetchone()[0]
             print(f"{queued} events queued: delivered by flagsmith.events_tick() (schedule_events) or "
-                  "`pg-flagsmith events --once`")
+                  "`pgsmith events --once`")
     print(f"simulated {len(users)} users: {counts}  (SIMULATED TRAFFIC)")
 
 

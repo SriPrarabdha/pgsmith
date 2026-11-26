@@ -37,7 +37,7 @@ SET search_path = pg_catalog, flagsmith, pg_temp AS $$
 DECLARE f float8;
 BEGIN
   -- JSON cannot carry infinities; the SDK's identity overrides use priority -inf,
-  -- which pg-flagsmith sync sends as the string "-Infinity"
+  -- which pgsmith sync sends as the string "-Infinity"
   IF json_typeof(j) = 'string' AND lower(j #>> '{}') IN ('-infinity', '-inf') THEN RETURN '-Infinity'::numeric; END IF;
   IF json_typeof(j) = 'string' AND lower(j #>> '{}') IN ('infinity', 'inf', '+infinity', '+inf') THEN RETURN 'Infinity'::numeric; END IF;
   IF j IS NULL OR json_typeof(j) <> 'number' THEN RETURN NULL; END IF;
@@ -193,7 +193,7 @@ BEGIN
       ELSIF tr.status = 'invalid' THEN
         st := 'invalid';
         PERFORM flagsmith._warn(sid, 'error', 'regex_invalid', path,
-          format('Python rejects pattern %s (%s); the reference engine raises, pg_flagsmith evaluates false', vs, tr.detail));
+          format('Python rejects pattern %s (%s); the reference engine raises, pgsmith evaluates false', vs, tr.detail));
       ELSE
         st := 'unsupported';
         PERFORM flagsmith._warn(sid, CASE WHEN policy = 'reject' THEN 'error' ELSE 'warning' END,
@@ -209,7 +209,7 @@ BEGIN
       END IF;
       IF m_div = 0 THEN
         PERFORM flagsmith._warn(sid, 'error', 'modulo_zero', path,
-          'zero divisor: the reference engine raises ZeroDivisionError, pg_flagsmith evaluates false');
+          'zero divisor: the reference engine raises ZeroDivisionError, pgsmith evaluates false');
       END IF;
     WHEN 'PERCENTAGE_SPLIT' THEN
       thr := CASE WHEN is_str THEN flagsmith.py_float(vs)
@@ -243,7 +243,7 @@ BEGIN
     rid := next_rule; next_rule := next_rule + 1;
     t := coalesce(r ->> 'type', '');
     IF t NOT IN ('ALL', 'ANY', 'NONE') THEN
-      RAISE EXCEPTION 'pg_flagsmith: %.rules.% has rule type %, expected ALL, ANY or NONE', path, k, t;
+      RAISE EXCEPTION 'pgsmith: %.rules.% has rule type %, expected ALL, ANY or NONE', path, k, t;
     END IF;
     INSERT INTO flagsmith.rule (snapshot_id, rule_id, seg_ord, parent_id, ord, rule_type)
     VALUES (sid, rid, seg, parent, k, t);
@@ -276,7 +276,7 @@ DECLARE
   w float8;
 BEGIN
   IF fc ->> 'name' IS NULL THEN
-    RAISE EXCEPTION 'pg_flagsmith: %: feature context without a name', path;
+    RAISE EXCEPTION 'pgsmith: %: feature context without a name', path;
   END IF;
   INSERT INTO flagsmith.feature_context (snapshot_id, fc_id, feature_name, seg_ord, ord, feature_key,
     enabled, value, value_json, priority, metadata)
@@ -369,13 +369,13 @@ DECLARE
   nestloop text;
 BEGIN
   IF kind NOT IN ('live', 'candidate', 'test') THEN
-    RAISE EXCEPTION 'pg_flagsmith: kind must be live, candidate or test, not %', kind;
+    RAISE EXCEPTION 'pgsmith: kind must be live, candidate or test, not %', kind;
   END IF;
   IF ek IS NULL THEN
-    RAISE EXCEPTION 'pg_flagsmith: no environment key (pass env_key or set context.environment.key)';
+    RAISE EXCEPTION 'pgsmith: no environment key (pass env_key or set context.environment.key)';
   END IF;
   IF json_typeof(ctx) <> 'object' THEN
-    RAISE EXCEPTION 'pg_flagsmith: the context must be a JSON object';
+    RAISE EXCEPTION 'pgsmith: the context must be a JSON object';
   END IF;
 
   -- 1. one loader per environment
@@ -475,7 +475,7 @@ BEGIN
       false)
     LIMIT 1;
     IF bad_io IS NOT NULL THEN
-      RAISE EXCEPTION 'pg_flagsmith: identity_overrides.%: identity_overrides segments must have the SDK shape: '
+      RAISE EXCEPTION 'pgsmith: identity_overrides.%: identity_overrides segments must have the SDK shape: '
         'one ALL rule with one condition $.identity.identifier IN [...], and overrides with names', bad_io;
     END IF;
 
@@ -659,7 +659,7 @@ BEGIN
     FROM flagsmith.snapshot_warning w
     WHERE w.snapshot_id = sid AND w.code = 'regex_unportable';
     IF rej IS NOT NULL THEN
-      RAISE EXCEPTION 'pg_flagsmith: snapshot rejected by regex_policy = reject: %', rej
+      RAISE EXCEPTION 'pgsmith: snapshot rejected by regex_policy = reject: %', rej
         USING HINT = 'Set flagsmith.environment.regex_policy to ''false'' or ''approximate'' to load it anyway.';
     END IF;
   END IF;
@@ -694,7 +694,7 @@ BEGIN
     PERFORM flagsmith.gc(ek);
   END IF;
 
-  RAISE LOG 'pg_flagsmith load env=% snapshot=% kind=% segments=% features=% conditions=% overrides=% identity_overrides=% ms=%',
+  RAISE LOG 'pgsmith load env=% snapshot=% kind=% segments=% features=% conditions=% overrides=% identity_overrides=% ms=%',
     ek, sid, kind, nseg - n_io, nfeat, next_cond - 1, fcid - nfeat, n_io,
     round(extract(epoch FROM clock_timestamp() - t0)::numeric * 1000, 1);
   RETURN sid;
@@ -719,7 +719,7 @@ DECLARE
   sid bigint;
 BEGIN
   IF ek IS NULL THEN
-    RAISE EXCEPTION 'pg_flagsmith: no environment key (pass env_key or set context.environment.key)';
+    RAISE EXCEPTION 'pgsmith: no environment key (pass env_key or set context.environment.key)';
   END IF;
   -- the same lock load_context takes: nothing else loads this environment in between
   PERFORM pg_advisory_xact_lock(hashtextextended('flagsmith:' || ek, 0));

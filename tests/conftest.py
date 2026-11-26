@@ -1,6 +1,6 @@
-"""Shared fixtures: a psycopg connection to a database with pg_flagsmith installed.
+"""Shared fixtures: a psycopg connection to a database with pgsmith installed.
 
-Set PGFS_DSN (default: the dev container started by `make db`).
+Set PGSMITH_DSN (default: the dev container started by `make db`).
 """
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import os
 import psycopg
 import pytest
 
-DSN = os.environ.get("PGFS_DSN", "postgresql://postgres:pgfs@127.0.0.1:55417/pgfs")
+DSN = os.environ.get("PGSMITH_DSN", "postgresql://postgres:pgfs@127.0.0.1:55417/pgfs")
 
 
 @pytest.fixture(scope="session")

@@ -2,10 +2,10 @@
 
     python demos/seed_flagsmith.py [--api http://localhost:8000/api/v1/]
 
-Creates (idempotently) organisation "pg_flagsmith demo", project "Shop" with
+Creates (idempotently) organisation "pgsmith demo", project "Shop" with
 environments Staging and Production, five features, four segments, segment
 overrides that differ between the environments, identity overrides, server-side
-keys and the webhooks pointing at `pg-flagsmith serve`. Writes the keys to
+keys and the webhooks pointing at `pgsmith serve`. Writes the keys to
 demos/.env (git-ignored), which the other demo scripts read.
 """
 from __future__ import annotations
@@ -17,11 +17,11 @@ import pathlib
 import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "tools"))
-from pgflagsmith.admin import FlagsmithAdmin  # noqa: E402
+from pgsmith.admin import FlagsmithAdmin  # noqa: E402
 
 HERE = pathlib.Path(__file__).resolve().parent
 
-EMAIL = os.environ.get("FLAGSMITH_ADMIN_EMAIL", "admin@pgflagsmith.local")
+EMAIL = os.environ.get("FLAGSMITH_ADMIN_EMAIL", "admin@pgsmith.local")
 PASSWORD = os.environ.get("FLAGSMITH_ADMIN_PASSWORD", "Sup3r-Secret-Demo!")
 
 
@@ -76,7 +76,7 @@ IDENTITY_OVERRIDES = {
 
 def seed(api: str, webhook_url: str | None) -> dict:
     fs = FlagsmithAdmin.login(api, EMAIL, PASSWORD, register=True)
-    org = fs.organisation("pg_flagsmith demo")
+    org = fs.organisation("pgsmith demo")
     project = fs.project(org["id"], "Shop")
     envs = {name: fs.environment(project["id"], name) for name in ["Staging", "Production"]}
     for e in envs.values():

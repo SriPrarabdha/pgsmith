@@ -92,7 +92,7 @@ def render_markdown(res: dict) -> str:
     out = [f"### FlagShift plan: `{_md(res['source'])}` → `{_md(res['environment'])}`", "",
            f"Population `{_md(res['population'])}`: **{pop:,}** identities. "
            f"**{n}** feature(s) change, **{len(by) - n}** unchanged. "
-           f"Evaluated inside Postgres with pg_flagsmith in {res['seconds']}s "
+           f"Evaluated inside Postgres with pgsmith in {res['seconds']}s "
            f"(live snapshot {res['live_snapshot']}, candidate {res['candidate_snapshot']}).", ""]
     if n:
         out += ["| Feature | Users changing | Change | Reason |", "|---|---:|---|---|"]

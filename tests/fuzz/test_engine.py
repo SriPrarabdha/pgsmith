@@ -1,8 +1,8 @@
 """Differential fuzzing: random EvaluationContexts, evaluated by the official
-engine (flag_engine.get_evaluation_result) and by pg_flagsmith, must give the
+engine (flag_engine.get_evaluation_result) and by pgsmith, must give the
 same flags (enabled, value, variant, reason, metadata) and segments.
 
-    PGFS_FUZZ_EXAMPLES=5000 pytest tests/fuzz/test_engine.py
+    PGSMITH_FUZZ_EXAMPLES=5000 pytest tests/fuzz/test_engine.py
 
 Counterexamples are written to tests/fuzz/regressions/ in engine-test-data format.
 """
@@ -22,7 +22,7 @@ from hypothesis import strategies as st
 
 from tests.strict import diff
 
-N = int(os.environ.get("PGFS_FUZZ_EXAMPLES", "300"))
+N = int(os.environ.get("PGSMITH_FUZZ_EXAMPLES", "300"))
 REGRESSIONS = pathlib.Path(__file__).resolve().parent / "regressions"
 
 FEATURES = ["f1", "f2", "f3", "checkout"]

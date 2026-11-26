@@ -14,7 +14,7 @@
 -- 5xx are retried with backoff; 401/403 stops delivery for that environment
 -- (batches are kept); other 4xx drop the batch (kept as 'rejected' for a week).
 -- Senders: the database itself (events_tick(), over http or pg_net, for
--- environments with a remote source) or `pg-flagsmith events` (events_claim()).
+-- environments with a remote source) or `pgsmith events` (events_claim()).
 -- Both can run at once: claims use SKIP LOCKED.
 
 CREATE TABLE flagsmith.settings (
@@ -118,17 +118,17 @@ DECLARE ek text; eid bigint; cap bigint; lo bigint; d record; n bigint := 0;
 BEGIN
   ek := flagsmith._event_env(env);
   IF ek IS NULL THEN
-    RAISE EXCEPTION 'pg_flagsmith: unknown environment %', coalesce(env, '(no default environment)');
+    RAISE EXCEPTION 'pgsmith: unknown environment %', coalesce(env, '(no default environment)');
   END IF;
   IF event IS NULL OR length(event) NOT BETWEEN 1 AND 200 THEN
-    RAISE EXCEPTION 'pg_flagsmith: event names are 1 to 200 characters';
+    RAISE EXCEPTION 'pgsmith: event names are 1 to 200 characters';
   END IF;
   IF length(feature) > 2000 OR length(identifier) > 2000 OR length(value) > 10000 THEN
-    RAISE EXCEPTION 'pg_flagsmith: feature and identifier are at most 2000 characters, value 10000';
+    RAISE EXCEPTION 'pgsmith: feature and identifier are at most 2000 characters, value 10000';
   END IF;
   IF (traits IS NOT NULL AND (jsonb_typeof(traits) <> 'object' OR octet_length(traits::text) > 65536))
      OR (metadata IS NOT NULL AND (jsonb_typeof(metadata) <> 'object' OR octet_length(metadata::text) > 65536)) THEN
-    RAISE EXCEPTION 'pg_flagsmith: traits and metadata are JSON objects of at most 64 kB';
+    RAISE EXCEPTION 'pgsmith: traits and metadata are JSON objects of at most 64 kB';
   END IF;
   INSERT INTO flagsmith.event_queue (env_key, event, feature_name, identifier, value, traits, metadata, ts_ms)
   VALUES (ek, event, feature, identifier, value, traits, metadata,
@@ -153,7 +153,7 @@ BEGIN
         n := n + d.cnt;
       END LOOP;
       IF n > 0 THEN
-        RAISE WARNING 'pg_flagsmith: event queue over events_max_queued (%): dropped the % oldest events', cap, n;
+        RAISE WARNING 'pgsmith: event queue over events_max_queued (%): dropped the % oldest events', cap, n;
       END IF;
     END IF;
   END IF;
@@ -224,7 +224,7 @@ BEGIN
              'identifier', r.identifier,
              'value', r.value,
              'traits', CASE WHEN r.traits IS NULL OR r.traits = '{}'::jsonb THEN NULL ELSE r.traits END,
-             'metadata', coalesce(r.metadata, '{}'::jsonb) || jsonb_build_object('sdk_version', 'pg_flagsmith/@@VERSION@@'),
+             'metadata', coalesce(r.metadata, '{}'::jsonb) || jsonb_build_object('sdk_version', 'pgsmith/@@VERSION@@'),
              'timestamp', r.ts_ms) ORDER BY r.event_id) FILTER (WHERE r.rn = 1), '[]'::jsonb)::text || '}'
   INTO n_claimed, n_events, payload
   FROM ranked r;
@@ -243,7 +243,7 @@ BEGIN
   ELSIF outcome = 'rejected' THEN
     PERFORM flagsmith._event_stat(env_key, 0, n_claimed - n_events, n_events, 0);
   ELSE
-    RAISE EXCEPTION 'pg_flagsmith: outcome must be delivered or rejected';
+    RAISE EXCEPTION 'pgsmith: outcome must be delivered or rejected';
   END IF;
 END $$;
 
@@ -305,7 +305,7 @@ DECLARE src flagsmith.remote_source; hdr jsonb; resp record; rid bigint;
 BEGIN
   SELECT * INTO src FROM flagsmith.remote_source r WHERE r.name = b.source;
   hdr := jsonb_build_object('X-Environment-Key', flagsmith._remote_key(src.secret_name),
-                            'Flagsmith-SDK-User-Agent', 'pg_flagsmith/@@VERSION@@');
+                            'Flagsmith-SDK-User-Agent', 'pgsmith/@@VERSION@@');
   UPDATE flagsmith.event_batch x SET attempts = x.attempts + 1 WHERE x.batch_id = b.batch_id;
   b.attempts := b.attempts + 1;
   IF src.transport = 'http' THEN
@@ -390,15 +390,15 @@ SET search_path = pg_catalog, flagsmith, pg_temp AS $$
 DECLARE secs int := extract(epoch FROM every)::int; sched text; jid bigint;
 BEGIN
   IF flagsmith._ext_schema('pg_cron') IS NULL THEN
-    RAISE EXCEPTION 'pg_flagsmith: schedule_events needs pg_cron' USING HINT = 'CREATE EXTENSION pg_cron;';
+    RAISE EXCEPTION 'pgsmith: schedule_events needs pg_cron' USING HINT = 'CREATE EXTENSION pg_cron;';
   END IF;
   sched := CASE WHEN secs BETWEEN 1 AND 59 THEN secs || ' seconds'
                 WHEN secs >= 60 AND secs % 60 = 0 AND secs / 60 <= 59 THEN format('*/%s * * * *', secs / 60) END;
   IF sched IS NULL THEN
-    RAISE EXCEPTION 'pg_flagsmith: every must be 1-59 seconds or 1-59 whole minutes, not %', every;
+    RAISE EXCEPTION 'pgsmith: every must be 1-59 seconds or 1-59 whole minutes, not %', every;
   END IF;
   EXECUTE 'SELECT cron.schedule($1, $2, $3)' INTO jid
-    USING 'pg_flagsmith_events', sched, 'SELECT count(*) FROM flagsmith.events_tick()';
+    USING 'pgsmith_events', sched, 'SELECT count(*) FROM flagsmith.events_tick()';
   RETURN jid;
 END $$;
 
@@ -408,7 +408,7 @@ SET search_path = pg_catalog, flagsmith, pg_temp AS $$
 DECLARE ok boolean;
 BEGIN
   IF flagsmith._ext_schema('pg_cron') IS NULL THEN RETURN false; END IF;
-  EXECUTE 'SELECT cron.unschedule(jobid) FROM cron.job WHERE jobname = $1' INTO ok USING 'pg_flagsmith_events';
+  EXECUTE 'SELECT cron.unschedule(jobid) FROM cron.job WHERE jobname = $1' INTO ok USING 'pgsmith_events';
   RETURN coalesce(ok, false);
 END $$;
 

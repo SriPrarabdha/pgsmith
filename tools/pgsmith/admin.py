@@ -73,7 +73,7 @@ class FlagsmithAdmin:
         if register:
             try:
                 anon.post("auth/users/", {"email": email, "password": password, "re_password": password,
-                                          "first_name": "pg_flagsmith", "last_name": "demo"})
+                                          "first_name": "pgsmith", "last_name": "demo"})
             except FlagsmithAdminError as e:
                 if "already exists" not in str(e) and "400" not in str(e):
                     raise
@@ -102,7 +102,7 @@ class FlagsmithAdmin:
     def update_environment(self, env_key: str, **fields) -> dict:
         return self.patch(f"environments/{env_key}/", fields)
 
-    def server_key(self, env_key: str, name: str = "pg_flagsmith") -> str:
+    def server_key(self, env_key: str, name: str = "pgsmith") -> str:
         for k in self.all(f"environments/{env_key}/api-keys/"):
             if k["name"] == name and k.get("active", True):
                 return k["key"]

@@ -12,7 +12,7 @@ from flag_engine.utils.hashing import get_hashed_percentage_for_object_ids
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
-N = int(os.environ.get("PGFS_FUZZ_EXAMPLES", "300"))
+N = int(os.environ.get("PGSMITH_FUZZ_EXAMPLES", "300"))
 SETTINGS = settings(max_examples=N, deadline=None, suppress_health_check=list(HealthCheck))
 
 pg_text = st.text(alphabet=st.characters(blacklist_categories=("Cs",), blacklist_characters="\x00"), max_size=30)

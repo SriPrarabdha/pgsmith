@@ -16,7 +16,7 @@ def live_context(conn: psycopg.Connection, env: str) -> dict:
         """SELECT env_key, name, alias, snapshot_id, context::text, identity_overrides::text, source_rev
            FROM flagsmith.live_context(%s)""", (env,)).fetchone()
     if not row:
-        raise SystemExit(f"flagshift: environment {env!r} has no live snapshot in this database (run pg-flagsmith sync)")
+        raise SystemExit(f"flagshift: environment {env!r} has no live snapshot in this database (run pgsmith sync)")
     return {"env_key": row[0], "name": row[1], "alias": row[2], "snapshot_id": row[3],
             "context": json.loads(row[4]), "identity_overrides": json.loads(row[5]) if row[5] else None,
             "source_rev": row[6]}

@@ -1,0 +1,39 @@
+name: Bug report
+description: pgsmith returns something different from Flagsmith, or something does not work
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! If pgsmith and Flagsmith disagree on a flag, an evaluation context that reproduces it is the
+        most useful thing you can give (the format of Flagsmith's engine-test-data). **Do not paste server-side keys or
+        real user data.** Security issues: see SECURITY.md instead.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reproduce
+      description: SQL, a context JSON, or commands. `SELECT flagsmith.evaluate_context('<context>'::json)` makes a self-contained case.
+      render: sql
+  - type: input
+    id: postgres
+    attributes:
+      label: PostgreSQL version and platform
+      placeholder: "PostgreSQL 17.2, Supabase (pg_tle) / RDS / self-managed"
+    validations:
+      required: true
+  - type: input
+    id: flagsmith
+    attributes:
+      label: Flagsmith version (self-hosted) or SaaS
+      placeholder: "self-hosted 2.295.2"
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options: [Evaluation, Sync service, In-database sync, Exposure queue, FlagShift, Install / packaging, Docs, Other]

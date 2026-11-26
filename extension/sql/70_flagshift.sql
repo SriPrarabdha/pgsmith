@@ -38,7 +38,7 @@ SET search_path = pg_catalog, flagsmith, pg_temp AS $$
 DECLARE l bigint := coalesce(live, flagsmith._snapshot_for(env, NULL));
 BEGIN
   IF flagsmith._eval_sql(candidate) IS NULL THEN
-    RAISE EXCEPTION 'pg_flagsmith: candidate snapshot % does not exist', candidate;
+    RAISE EXCEPTION 'pgsmith: candidate snapshot % does not exist', candidate;
   END IF;
   RETURN QUERY EXECUTE format($q$
     SELECT coalesce(l.feature, c.feature),

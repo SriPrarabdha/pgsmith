@@ -2,7 +2,7 @@
 
 The environment document is fetched with a server-side key and mapped to an
 EvaluationContext by the official Python SDK's own mapper, so the mapping is
-correct by construction; pg_flagsmith then loads it in one transaction.
+correct by construction; pgsmith then loads it in one transaction.
 """
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ from flagsmith.mappers import (
     map_environment_document_to_identity_overrides_segments,
 )
 
-log = logging.getLogger("pg_flagsmith.sync")
+log = logging.getLogger("pgsmith.sync")
 
 MAX_DOCUMENT_BYTES = 64 * 1024 * 1024
 MAX_WEBHOOK_BYTES = 1024 * 1024
@@ -66,7 +66,7 @@ def fetch_document_body(api_url: str, server_key: str, timeout: float = 20,
     """The environment document's raw body. Unconditional on purpose: Flagsmith
     (2.295) caches Last-Modified per worker, so If-Modified-Since can be answered
     304 for seconds after a change. An unchanged body is skipped by its hash."""
-    headers = {"X-Environment-Key": server_key, "Accept": "application/json", "User-Agent": "pg-flagsmith-sync"}
+    headers = {"X-Environment-Key": server_key, "Accept": "application/json", "User-Agent": "pgsmith-sync"}
     with requests.get(api_url.rstrip("/") + "/environment-document/", headers=headers, timeout=timeout,
                       stream=True) as r:
         r.raise_for_status()
@@ -168,12 +168,12 @@ def make_server(syncer: "Syncer", trigger: threading.Event, host: str = "127.0.0
     The webhook body is never trusted: a valid call only triggers a sync, which
     fetches the document itself. Calls must be signed unless allow_unsigned."""
     if not webhook_secret and not allow_unsigned:
-        raise SystemExit("pg-flagsmith serve: set FLAGSMITH_WEBHOOK_SECRET (the webhook's signing secret in Flagsmith), "
+        raise SystemExit("pgsmith serve: set FLAGSMITH_WEBHOOK_SECRET (the webhook's signing secret in Flagsmith), "
                          "or pass --allow-unsigned-webhooks to accept unsigned calls")
 
     class Handler(BaseHTTPRequestHandler):
         timeout = 10                      # seconds a client may take to send its request
-        server_version = "pg-flagsmith"
+        server_version = "pgsmith"
         sys_version = ""
 
         def log_message(self, fmt, *args):  # quieter default logging

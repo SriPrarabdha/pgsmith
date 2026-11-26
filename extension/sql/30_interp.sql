@@ -200,7 +200,7 @@ DECLARE
 BEGIN
   SELECT * INTO sn FROM flagsmith.snapshot x WHERE x.snapshot_id = sid;
   IF NOT FOUND THEN
-    RAISE EXCEPTION 'pg_flagsmith: snapshot % does not exist', sid;
+    RAISE EXCEPTION 'pgsmith: snapshot % does not exist', sid;
   END IF;
   IF has_identity THEN
     ikey := coalesce(nullif(identity_key, ''), sn.ctx_env_key || '_' || coalesce(identifier, 'None'));

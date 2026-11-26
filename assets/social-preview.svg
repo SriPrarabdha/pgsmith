@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0B0F1A"/><stop offset="1" stop-color="#1E1B3A"/></linearGradient>
+    <radialGradient id="glow" cx=".78" cy=".2" r=".6"><stop offset="0" stop-color="#7C3AED" stop-opacity=".35"/><stop offset="1" stop-color="#7C3AED" stop-opacity="0"/></radialGradient>
+  </defs>
+  <rect width="1280" height="640" fill="url(#bg)"/>
+  <rect width="1280" height="640" fill="url(#glow)"/>
+  <g transform="translate(96 120) scale(2.34375)">
+    <defs>
+      <linearGradient id="flag" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#8B5CF6"/><stop offset="1" stop-color="#4F46E5"/>
+      </linearGradient>
+      <linearGradient id="anvil" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#64748B"/><stop offset="1" stop-color="#334155"/>
+      </linearGradient>
+    </defs>
+    <rect x="21" y="7" width="4.5" height="40" rx="2.25" fill="#94A3B8"/>
+    <path d="M25.5 9 C 33 5.5, 39 12.5, 47 9 C 51 7.3, 54 7.6, 56 8.4 L 56 29 C 54 28.2, 51 27.9, 47 29.6 C 39 33, 33 26, 25.5 29.5 Z" fill="url(#flag)"/>
+    <g fill="#FFFFFF" opacity=".92">
+      <rect x="31" y="14.2" width="17" height="3.2" rx="1.6"/>
+      <rect x="31" y="19.4" width="12" height="3.2" rx="1.6"/>
+    </g>
+    <path d="M6 46 H 50 C 50 49.5, 46.5 51, 42 51 H 37 L 39.5 57 H 44 V 60 H 16 V 57 H 20.5 L 23 51 H 16 C 10 51, 6 49, 6 46 Z" fill="url(#anvil)"/>
+    <path d="M50 46 C 55 46, 58.5 44.5, 60 42 C 58 47.5, 54.5 49.5, 50 49.6 Z" fill="#475569"/>
+  </g>
+  <text x="276" y="232" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="112" font-weight="800" letter-spacing="-3"><tspan fill="#A78BFA">pg</tspan><tspan fill="#F9FAFB">smith</tspan></text>
+  <text x="98" y="352" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="44" font-weight="600" fill="#F3F4F6">Flagsmith feature flags, evaluated inside Postgres.</text>
+  <text x="98" y="414" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="27" fill="#9CA3AF">Same answers as Flagsmith's engine · compiled to SQL the planner inlines · syncs itself</text>
+  
+  <g transform="translate(98 462)"><rect width="313" height="44" rx="22" fill="#1F2937" stroke="#374151"/><text x="156" y="29" text-anchor="middle" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="18" fill="#D1D5DB">230/230 Flagsmith engine tests</text></g><g transform="translate(425 462)"><rect width="268" height="44" rx="22" fill="#1F2937" stroke="#374151"/><text x="134" y="29" text-anchor="middle" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="18" fill="#D1D5DB">8.4M flag evaluations / s</text></g><g transform="translate(98 522)"><rect width="340" height="44" rx="22" fill="#1F2937" stroke="#374151"/><text x="170" y="29" text-anchor="middle" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="18" fill="#D1D5DB">Supabase · RDS · PostgreSQL 14–18</text></g><g transform="translate(452 522)"><rect width="422" height="44" rx="22" fill="#1F2937" stroke="#374151"/><text x="211" y="29" text-anchor="middle" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="18" fill="#D1D5DB">FlagShift: terraform plan for flag changes</text></g>
+</svg>

@@ -1,0 +1,35 @@
+# Tag vX.Y.Z (matching extension/VERSION) to publish a release: the install scripts
+# and the database.dev package as release assets, and the sync service image on GHCR.
+name: Release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write     # create the release
+  packages: write     # push the image to ghcr.io
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - name: Check the tag matches extension/VERSION
+        run: test "${GITHUB_REF_NAME#v}" = "$(cat extension/VERSION)"
+      - name: Build
+        run: |
+          python3 extension/build.py
+          V=$(cat extension/VERSION)
+          mkdir release
+          cp extension/dist/pgsmith--$V.sql extension/dist/pgsmith.control extension/dist/pgsmith--$V.pgtle.sql release/
+          tar -C extension/dist -czf release/pgsmith-$V-dbdev.tar.gz dbdev
+      - name: GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" release/* --title "pgsmith $GITHUB_REF_NAME" --generate-notes --verify-tag
+      - name: Sync service image (ghcr.io)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}/sync
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker build -f tools/Dockerfile -t "$IMAGE:${GITHUB_REF_NAME#v}" -t "$IMAGE:latest" .
+          docker push "$IMAGE:${GITHUB_REF_NAME#v}" && docker push "$IMAGE:latest"

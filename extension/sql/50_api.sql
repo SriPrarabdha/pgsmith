@@ -13,18 +13,18 @@ BEGIN
   IF env IS NULL THEN
     SELECT e.current_snapshot INTO sid FROM flagsmith.environment e WHERE e.is_default;
     IF NOT FOUND THEN
-      RAISE EXCEPTION 'pg_flagsmith: no default environment; load one with flagsmith.load_context()';
+      RAISE EXCEPTION 'pgsmith: no default environment; load one with flagsmith.load_context()';
     END IF;
   ELSE
     SELECT e.current_snapshot INTO sid FROM flagsmith.environment e
     WHERE e.env_key = env OR e.alias = env OR e.name = env
     ORDER BY (e.env_key = env) DESC, (e.alias = env) DESC LIMIT 1;
     IF NOT FOUND THEN
-      RAISE EXCEPTION 'pg_flagsmith: unknown environment %', env;
+      RAISE EXCEPTION 'pgsmith: unknown environment %', env;
     END IF;
   END IF;
   IF sid IS NULL THEN
-    RAISE EXCEPTION 'pg_flagsmith: environment % has no live snapshot yet', coalesce(env, '(default)');
+    RAISE EXCEPTION 'pgsmith: environment % has no live snapshot yet', coalesce(env, '(default)');
   END IF;
   RETURN sid;
 END $$;
@@ -79,11 +79,11 @@ BEGIN
   sid := flagsmith.load_context(
     (SELECT json_object_agg(e.key, e.value ORDER BY e.pos) FROM flagsmith._json_entries(ctx) e
      WHERE e.key NOT IN ('identity', 'flags')),
-    env_key => '__pg_flagsmith_test__', source => 'test', kind => 'test', compile => compiled);
+    env_key => '__pgsmith_test__', source => 'test', kind => 'test', compile => compiled);
   has_identity := json_typeof(ident) = 'object' AND ident::text <> '{}' AND ident::jsonb <> '{}'::jsonb;
   IF compiled THEN
     IF NOT (SELECT s.compiled FROM flagsmith.snapshot s WHERE s.snapshot_id = sid) THEN
-      RAISE EXCEPTION 'pg_flagsmith: snapshot % has no compiled code (%)', sid,
+      RAISE EXCEPTION 'pgsmith: snapshot % has no compiled code (%)', sid,
         (SELECT s.compile_note FROM flagsmith.snapshot s WHERE s.snapshot_id = sid);
     END IF;
     sql := format('SELECT array_agg(f) FROM flagsmith_c.flags_s%s($1, $2, $3, $4) f', sid);

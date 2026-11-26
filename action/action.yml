@@ -1,7 +1,7 @@
 name: FlagShift plan
 description: >
   terraform plan for Flagsmith flag changes. Evaluates the live and the proposed
-  configuration over your real users inside Postgres (pg_flagsmith) and posts who
+  configuration over your real users inside Postgres (pgsmith) and posts who
   changes, and why, as a pull-request comment.
 branding:
   icon: flag
@@ -48,7 +48,7 @@ runs:
     - id: plan
       shell: bash
       env:
-        PGFS_DSN: ${{ inputs.database-url }}
+        PGSMITH_DSN: ${{ inputs.database-url }}
         FS_ENV: ${{ inputs.environment }}
         FS_PATCH: ${{ inputs.patch }}
         FS_PROMOTE_FROM: ${{ inputs.promote-from }}
@@ -72,4 +72,6 @@ runs:
           || gh pr comment "$PR_NUMBER" --body-file body.md
     - if: inputs.fail-on-changes == 'true' && steps.plan.outputs.changes == 'true'
       shell: bash
-      run: echo "FlagShift: this change moves users; review the plan" && exit 1
+      run: |
+        echo "FlagShift: this change moves users; review the plan"
+        exit 1

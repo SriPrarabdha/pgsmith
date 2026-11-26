@@ -105,7 +105,7 @@ def apply_candidate(conn, a, result: dict) -> None:
                 break
             time.sleep(1)
     else:
-        print("  (no --server-key: waiting for pg-flagsmith sync to pick up the change)")
+        print("  (no --server-key: waiting for pgsmith sync to pick up the change)")
         before = live["snapshot_id"]
         for _ in range(60):
             if cand_mod.live_context(conn, a.env)["snapshot_id"] != before:

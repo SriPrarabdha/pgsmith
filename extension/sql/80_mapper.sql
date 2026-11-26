@@ -140,7 +140,7 @@ BEGIN
     ) x WHERE x.e IS NOT NULL ORDER BY x.ord LIMIT 1;
   END IF;
   IF err IS NOT NULL THEN
-    RAISE EXCEPTION 'pg_flagsmith: environment document: %', err USING ERRCODE = 'data_exception';
+    RAISE EXCEPTION 'pgsmith: environment document: %', err USING ERRCODE = 'data_exception';
   END IF;
 END $$;
 
@@ -215,7 +215,7 @@ BEGIN
     ) x WHERE x.e IS NOT NULL ORDER BY x.ord LIMIT 1;
   END IF;
   IF err IS NOT NULL THEN
-    RAISE EXCEPTION 'pg_flagsmith: environment document: %', err USING ERRCODE = 'data_exception';
+    RAISE EXCEPTION 'pgsmith: environment document: %', err USING ERRCODE = 'data_exception';
   END IF;
   SELECT coalesce(json_agg(json_build_object(
            'type', r.value -> 'type',
@@ -251,7 +251,7 @@ BEGIN
   err := coalesce(flagsmith._need(doc, ARRAY['api_key', 'name', 'feature_states', 'project'], 'document'),
                   flagsmith._need(doc -> 'project', ARRAY['segments'], 'document.project'));
   IF err IS NOT NULL THEN
-    RAISE EXCEPTION 'pg_flagsmith: environment document: %', err USING ERRCODE = 'data_exception';
+    RAISE EXCEPTION 'pgsmith: environment document: %', err USING ERRCODE = 'data_exception';
   END IF;
 
   -- features: {name: feature context}; a name must be hashable
@@ -272,7 +272,7 @@ BEGIN
   ELSE
     -- the Python mapper checks every feature state before it builds the dict
     PERFORM flagsmith._check_feature_states(doc -> 'feature_states', 'feature_states');
-    RAISE EXCEPTION 'pg_flagsmith: environment document: %', err USING ERRCODE = 'data_exception';
+    RAISE EXCEPTION 'pgsmith: environment document: %', err USING ERRCODE = 'data_exception';
   END IF;
 
   -- segments: {str(id): segment context}
@@ -284,7 +284,7 @@ BEGIN
     WHERE y.msg IS NOT NULL ORDER BY y.ord LIMIT 1;
   END IF;
   IF err IS NOT NULL THEN
-    RAISE EXCEPTION 'pg_flagsmith: environment document: %', err USING ERRCODE = 'data_exception';
+    RAISE EXCEPTION 'pgsmith: environment document: %', err USING ERRCODE = 'data_exception';
   END IF;
   SELECT coalesce(json_object_agg(flagsmith.py_str_json(s.value -> 'id'), json_build_object(
            'key', flagsmith.py_str_json(s.value -> 'id'),
@@ -329,7 +329,7 @@ BEGIN
       ) x WHERE x.e IS NOT NULL ORDER BY x.ord LIMIT 1;
     END IF;
     IF err IS NOT NULL THEN
-      RAISE EXCEPTION 'pg_flagsmith: environment document: %', err USING ERRCODE = 'data_exception';
+      RAISE EXCEPTION 'pgsmith: environment document: %', err USING ERRCODE = 'data_exception';
     END IF;
     SELECT json_object_agg(flagsmith._py_json_key(g.first_id), g.last_seg ORDER BY g.first_ord)
     INTO ios

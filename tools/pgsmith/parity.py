@@ -1,8 +1,8 @@
 """Live parity check: the official SDK in local-evaluation mode against
-pg_flagsmith, for real identities from your database.
+pgsmith, for real identities from your database.
 
 Both sides read the same environment document: the SDK fetches it itself, and
-pg_flagsmith is synced from it first (same `updated_at`). Every flag of every
+pgsmith is synced from it first (same `updated_at`). Every flag of every
 sampled identity is compared on enabled, value, variant and reason, through
 both the interpreter (get_flags) and the published compiled function.
 """
@@ -44,7 +44,7 @@ def _sdk_client(api_url: str, server_key: str, updated_at: str) -> Flagsmith:
             return client
         client.close()
         time.sleep(1)
-    raise RuntimeError("the SDK and pg_flagsmith did not see the same environment document version")
+    raise RuntimeError("the SDK and pgsmith did not see the same environment document version")
 
 
 def _sdk_flags(client: Flagsmith, features: list[str], identifier: str, traits: dict) -> dict:

@@ -1,4 +1,4 @@
--- Roles and privileges. Nothing in the pg_flagsmith schemas is granted to PUBLIC.
+-- Roles and privileges. Nothing in the pgsmith schemas is granted to PUBLIC.
 --
 --   flagsmith_reader   evaluate flags                                   application roles
 --   flagsmith_tracker  record exposures and events (writes: primary)    application roles
@@ -10,7 +10,7 @@
 --                      where a server-side key is sent), the settings and every table
 --
 -- How grants are decided: SECURITY INVOKER routines run with the caller's own
--- privileges, and no role has privileges on pg_flagsmith's tables, so readers get
+-- privileges, and no role has privileges on pgsmith's tables, so readers get
 -- every invoker routine except the administrative ones listed below. SECURITY
 -- DEFINER routines act with the owner's privileges, so each is granted by name;
 -- internal ones (_publish, _remote_key, ...) are granted to no one.
@@ -22,7 +22,7 @@ BEGIN
       BEGIN
         EXECUTE format('CREATE ROLE %I NOLOGIN', r);
       EXCEPTION WHEN insufficient_privilege THEN
-        RAISE NOTICE 'pg_flagsmith: cannot create role %; grant EXECUTE on pg_flagsmith functions manually', r;
+        RAISE NOTICE 'pgsmith: cannot create role %; grant EXECUTE on pgsmith functions manually', r;
       END;
     END IF;
   END LOOP;
@@ -101,6 +101,6 @@ BEGIN
       END IF;
     END IF;
   EXCEPTION WHEN insufficient_privilege OR invalid_grant_operation THEN
-    RAISE NOTICE 'pg_flagsmith: could not set up role membership (planner > reader, loader > planner, tracker): %', SQLERRM;
+    RAISE NOTICE 'pgsmith: could not set up role membership (planner > reader, loader > planner, tracker): %', SQLERRM;
   END;
 END $$;

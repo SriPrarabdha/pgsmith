@@ -4,6 +4,7 @@ permissions:
   contents: read
 jobs:
   conformance:
+    name: PostgreSQL ${{ matrix.postgres }}
     strategy:
       fail-fast: false
       matrix:
@@ -16,25 +17,34 @@ jobs:
         ports: ['5432:5432']
         options: --health-cmd pg_isready --health-interval 2s --health-retries 30
     env:
-      PGFS_DSN: postgresql://postgres:pgfs@localhost:5432/pgfs
-      PGFS_FUZZ_EXAMPLES: 2000
+      PGSMITH_DSN: postgresql://postgres:pgfs@localhost:5432/pgfs
+      PGSMITH_FUZZ_EXAMPLES: 2000
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
       - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86  # v5
       - run: uv venv --python 3.12 && uv pip install -e '.[dev]'
       - run: python extension/build.py
-      - name: install the extension into the service container
+      - name: Install the extension into the service container
         run: |
           C=$(docker ps -q --filter ancestor=postgres:${{ matrix.postgres }})
           S=$(docker exec $C pg_config --sharedir)
-          docker cp extension/dist/pg_flagsmith--$(cat extension/VERSION).sql $C:$S/extension/
-          docker cp extension/dist/pg_flagsmith.control $C:$S/extension/
-          docker exec $C psql -U postgres -d pgfs -c 'CREATE EXTENSION pg_flagsmith'
+          docker cp extension/dist/pgsmith--$(cat extension/VERSION).sql $C:$S/extension/
+          docker cp extension/dist/pgsmith.control $C:$S/extension/
+          docker exec $C psql -U postgres -d pgfs -c 'CREATE EXTENSION pgsmith'
       - run: .venv/bin/pytest tests -p no:warnings
   supabase-pgtle:
+    name: Supabase (pg_tle)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
       - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86  # v5
       - run: uv venv --python 3.12 && uv pip install -e '.[dev]'
-      - run: scripts/matrix.sh supabase
+      - run: scripts/matrix.sh supabase | tee matrix.log && ! grep -E "INSTALL FAILED|[0-9]+ failed|[0-9]+ errors?\b" matrix.log
+  audit:
+    name: Dependency and static checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86  # v5
+      - run: uv venv --python 3.12 && uv pip install -e '.[dev]'
+      - run: make audit PY=.venv/bin/python

@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="416" viewBox="0 0 1000 416" role="img" aria-label="flagshift plan output">
+  <title>flagshift plan: who a staging to production promotion moves, and why</title>
+  <rect width="1000" height="416" rx="12" fill="#0D1117"/>
+  <rect x=".5" y=".5" width="999" height="415" rx="11.5" fill="none" stroke="#30363D"/>
+  <circle cx="22" cy="20" r="6" fill="#FF5F57"/><circle cx="42" cy="20" r="6" fill="#FEBC2E"/><circle cx="62" cy="20" r="6" fill="#28C840"/>
+  <text x="500.0" y="25" text-anchor="middle" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" fill="#8B949E">flagshift — Staging → Production, over 100,000 real users</text>
+  <g font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="13.2">
+    <text x="22" y="58" xml:space="preserve"><tspan fill="#7EE787">$ </tspan><tspan fill="#E6EDF3">flagshift plan --env production --promote-from staging --population app.users</tspan></text>
+    <text x="22" y="79" xml:space="preserve"><tspan fill="#E6EDF3">flagshift plan  Staging → Production   population: app.users (100,000 identities)</tspan></text>
+    <text x="22" y="121" xml:space="preserve"><tspan fill="#E3B341">~ max_upload_mb          24,782 users change (24.8%)</tspan></text>
+    <text x="22" y="142" xml:space="preserve"><tspan fill="#C9D1D9">    value &quot;100&quot; → &quot;250&quot;                            24,782 users   reason segment=app_v3</tspan></text>
+    <text x="22" y="163" xml:space="preserve"><tspan fill="#E3B341">~ pricing_banner         15,134 users change (15.1%)</tspan></text>
+    <text x="22" y="184" xml:space="preserve"><tspan fill="#C9D1D9">    value &quot;summer&quot; → &quot;diwali&quot;                      15,134 users   reason DEFAULT → segment=india_mobile</tspan></text>
+    <text x="22" y="205" xml:space="preserve"><tspan fill="#E3B341">~ new_checkout           12,885 users change (12.9%)</tspan></text>
+    <text x="22" y="226" xml:space="preserve"><tspan fill="#C9D1D9">    enabled off → on, value &quot;v1&quot; → &quot;v2&quot;             8,635 users   reason DEFAULT → segment=quarter_rollout</tspan></text>
+    <text x="22" y="247" xml:space="preserve"><tspan fill="#C9D1D9">    value &quot;v2-enterprise&quot; → &quot;v2&quot;                    4,250 users   reason segment=enterprise → quarter_rollout</tspan></text>
+    <text x="22" y="268" xml:space="preserve"><tspan fill="#8B949E">      e.g. user-10008, user-99999</tspan></text>
+    <text x="22" y="289" xml:space="preserve"><tspan fill="#8B949E">= dark_mode              no users change</tspan></text>
+    <text x="22" y="310" xml:space="preserve"><tspan fill="#FF7B72">  ! same rules, different people: only 25.1% of Staging&#x27;s 24,994 targeted users are targeted in</tspan></text>
+    <text x="22" y="331" xml:space="preserve"><tspan fill="#FF7B72">    Production (splits hash environment-specific keys)</tspan></text>
+    <text x="22" y="373" xml:space="preserve"><tspan fill="#E6EDF3">Plan: 3 feature(s) change for 52,801 identity-flag pairs; 2 unchanged.  (evaluated in 4.31s inside Postgres)</tspan></text>
+  </g>
+</svg>

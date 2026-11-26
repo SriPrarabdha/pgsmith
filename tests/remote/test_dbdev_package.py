@@ -1,6 +1,6 @@
 """The database.dev package: valid by dbdev's own rules (cli/src/models.rs), and
 installable the way dbdev.install() installs it: pgtle.install_extension under
-the package name '<handle>@pg_flagsmith', then CREATE EXTENSION with that name."""
+the package name '<handle>@pgsmith', then CREATE EXTENSION with that name."""
 from __future__ import annotations
 
 import json
@@ -15,7 +15,7 @@ import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 PKG = ROOT / "extension" / "dist" / "dbdev"
-APPDB = os.environ.get("PGFS_APPDB_DSN", "postgresql://postgres:pgfs@127.0.0.1:55433/postgres")
+APPDB = os.environ.get("PGSMITH_APPDB_DSN", "postgresql://postgres:pgfs@127.0.0.1:55433/postgres")
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -48,22 +48,22 @@ def test_installs_like_dbdev_install():
         admin = psycopg.connect(APPDB, autocommit=True, connect_timeout=3)
     except psycopg.OperationalError:
         pytest.skip("compose appdb not running")
-    db = "pgfs_dbdev_" + uuid.uuid4().hex[:6]
+    db = "pgsmith_dbdev_" + uuid.uuid4().hex[:6]
     admin.execute(f"CREATE DATABASE {db}")
     try:
         with psycopg.connect(APPDB.rsplit("/", 1)[0] + "/" + db, autocommit=True) as c:
             c.execute("CREATE EXTENSION pg_tle")
-            lines = dict(l.split("=", 1) for l in (PKG / "pg_flagsmith.control").read_text().splitlines())
+            lines = dict(l.split("=", 1) for l in (PKG / "pgsmith.control").read_text().splitlines())
             c.execute("SELECT pgtle.install_extension(%s, %s, %s, %s, '{}'::text[])",
-                      ("pgfs_test@pg_flagsmith", lines["default_version "].strip().strip("'"),
-                       lines["comment "].strip().strip("'"), (PKG / "pg_flagsmith--0.1.0.sql").read_text()))
-            c.execute('CREATE EXTENSION "pgfs_test@pg_flagsmith"')
+                      ("pgsmith_test@pgsmith", lines["default_version "].strip().strip("'"),
+                       lines["comment "].strip().strip("'"), (PKG / "pgsmith--0.1.0.sql").read_text()))
+            c.execute('CREATE EXTENSION "pgsmith_test@pgsmith"')
             ctx = {"environment": {"key": "dbdev_env", "name": "dbdev"},
                    "features": {"f": {"key": "1", "name": "f", "enabled": True, "value": "v"}}, "segments": {}}
             c.execute("SELECT flagsmith.load_context(%s::json)", (json.dumps(ctx),))
             assert c.execute("SELECT enabled, value FROM flagsmith.flags('u1', '{}')").fetchone() == (True, "v")
             assert c.execute("SELECT compiled FROM flagsmith.environments()").fetchone() == (True,)
-            c.execute('DROP EXTENSION "pgfs_test@pg_flagsmith" CASCADE')
+            c.execute('DROP EXTENSION "pgsmith_test@pgsmith" CASCADE')
     finally:
         admin.execute(f"DROP DATABASE {db} WITH (FORCE)")
         admin.close()

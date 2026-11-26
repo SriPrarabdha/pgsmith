@@ -13,14 +13,14 @@
 --
 -- Security:
 --   * The server-side key is read from Supabase Vault when a request is made;
---     it is never stored in a pg_flagsmith table.
+--     it is never stored in a pgsmith table.
 --   * Only the owner of the extension can add or change a source: a source
 --     decides where a key is sent. flagsmith_loader can only run syncs.
 --   * Plain http:// URLs are refused unless allow_insecure_http is set (local stacks).
 --   * Transport 'http' (the pgsql-http extension) keeps the key and the document
 --     in memory. Transport 'pg_net' queues the request, key included, in
 --     net.http_request_queue and receives the document in net._http_response,
---     tables Supabase grants to anon and authenticated; pg_flagsmith deletes its
+--     tables Supabase grants to anon and authenticated; pgsmith deletes its
 --     response as soon as it reads it, and sync_status() reports roles that can
 --     read or write those tables. Prefer 'http' where it is installed (the default).
 
@@ -66,10 +66,10 @@ SET search_path = pg_catalog, flagsmith, pg_temp AS $$
 BEGIN
   IF url IS NULL OR url !~ '^https?://[A-Za-z0-9._~%!$&''()*+,;=:\[\]-]+(/[A-Za-z0-9._~%!$&''()*+,;=:@/-]*)?$'
      OR split_part(split_part(url, '://', 2), '/', 1) ~ '@' THEN
-    RAISE EXCEPTION 'pg_flagsmith: % must be an http(s) URL without credentials, query or fragment: %', what, url;
+    RAISE EXCEPTION 'pgsmith: % must be an http(s) URL without credentials, query or fragment: %', what, url;
   END IF;
   IF url ~ '^http://' AND NOT allow_insecure_http THEN
-    RAISE EXCEPTION 'pg_flagsmith: % uses plain http, which would send the server-side key unencrypted', what
+    RAISE EXCEPTION 'pgsmith: % uses plain http, which would send the server-side key unencrypted', what
       USING HINT = 'Use https, or pass allow_insecure_http => true for a local stack.';
   END IF;
   RETURN url;
@@ -104,20 +104,20 @@ BEGIN
     tr := CASE WHEN flagsmith._ext_schema('http') IS NOT NULL THEN 'http'
                WHEN flagsmith._ext_schema('pg_net') IS NOT NULL THEN 'pg_net' END;
     IF tr = 'pg_net' THEN
-      RAISE NOTICE 'pg_flagsmith: using pg_net; the http extension keeps the key out of shared tables (CREATE EXTENSION http)';
+      RAISE NOTICE 'pgsmith: using pg_net; the http extension keeps the key out of shared tables (CREATE EXTENSION http)';
     END IF;
   END IF;
   IF tr IS NULL OR (tr = 'http' AND flagsmith._ext_schema('http') IS NULL)
      OR (tr = 'pg_net' AND flagsmith._ext_schema('pg_net') IS NULL) THEN
-    RAISE EXCEPTION 'pg_flagsmith: in-database sync needs the http or pg_net extension'
+    RAISE EXCEPTION 'pgsmith: in-database sync needs the http or pg_net extension'
       USING HINT = 'CREATE EXTENSION http WITH SCHEMA extensions;  (or pg_net)';
   END IF;
   IF to_regclass('vault.decrypted_secrets') IS NULL THEN
-    RAISE EXCEPTION 'pg_flagsmith: in-database sync reads the server-side key from Supabase Vault, which is not installed';
+    RAISE EXCEPTION 'pgsmith: in-database sync reads the server-side key from Supabase Vault, which is not installed';
   END IF;
   EXECUTE 'SELECT EXISTS (SELECT 1 FROM vault.secrets WHERE name = $1)' INTO found_secret USING secret_name;
   IF NOT found_secret THEN
-    RAISE EXCEPTION 'pg_flagsmith: no Vault secret named %', secret_name
+    RAISE EXCEPTION 'pgsmith: no Vault secret named %', secret_name
       USING HINT = 'SELECT vault.create_secret(''ser.your-server-side-key'', ''' || secret_name || ''');';
   END IF;
   INSERT INTO flagsmith.remote_source AS r (name, api_url, secret_name, transport, events_url, timeout_ms)
@@ -145,7 +145,7 @@ DECLARE k text;
 BEGIN
   EXECUTE 'SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name = $1' INTO k USING secret;
   IF k IS NULL OR k = '' THEN
-    RAISE EXCEPTION 'pg_flagsmith: Vault secret % is missing or empty', secret;
+    RAISE EXCEPTION 'pgsmith: Vault secret % is missing or empty', secret;
   END IF;
   RETURN k;
 END $$;
@@ -164,7 +164,7 @@ LANGUAGE plpgsql VOLATILE
 SET search_path = pg_catalog, flagsmith, pg_temp AS $$
 DECLARE sch text := flagsmith._ext_schema('http');
 BEGIN
-  IF sch IS NULL THEN RAISE EXCEPTION 'pg_flagsmith: the http extension is not installed'; END IF;
+  IF sch IS NULL THEN RAISE EXCEPTION 'pgsmith: the http extension is not installed'; END IF;
   EXECUTE format('SELECT %I.http_set_curlopt(''CURLOPT_TIMEOUT_MS'', $1)', sch) USING timeout_ms::text;
   BEGIN
     EXECUTE format($q$
@@ -188,7 +188,7 @@ LANGUAGE sql STABLE
 BEGIN ATOMIC
   SELECT jsonb_build_object('X-Environment-Key', flagsmith._remote_key(src.secret_name),
                             'Accept', 'application/json',
-                            'User-Agent', 'pg_flagsmith/@@VERSION@@');
+                            'User-Agent', 'pgsmith/@@VERSION@@');
 END;
 
 -- Record a failed attempt.
@@ -375,7 +375,7 @@ END $$;
 -- The cron entry point: a pass, then (pg_net) commit so the requests go out and
 -- wait for their responses, so a change is loaded in the same run.
 -- A procedure that commits cannot carry SET or SECURITY DEFINER; its body only
--- calls schema-qualified pg_flagsmith functions, so search_path cannot redirect it.
+-- calls schema-qualified pgsmith functions, so search_path cannot redirect it.
 CREATE PROCEDURE flagsmith.sync_run()
 LANGUAGE plpgsql AS $$
 BEGIN
@@ -392,16 +392,16 @@ SET search_path = pg_catalog, flagsmith, pg_temp AS $$
 DECLARE secs int := extract(epoch FROM every)::int; sched text; jid bigint;
 BEGIN
   IF flagsmith._ext_schema('pg_cron') IS NULL THEN
-    RAISE EXCEPTION 'pg_flagsmith: schedule_sync needs pg_cron' USING HINT = 'CREATE EXTENSION pg_cron;';
+    RAISE EXCEPTION 'pgsmith: schedule_sync needs pg_cron' USING HINT = 'CREATE EXTENSION pg_cron;';
   END IF;
   sched := CASE WHEN secs BETWEEN 1 AND 59 THEN secs || ' seconds'
                 WHEN secs >= 60 AND secs % 60 = 0 AND secs / 60 <= 59 THEN format('*/%s * * * *', secs / 60)
            END;
   IF sched IS NULL THEN
-    RAISE EXCEPTION 'pg_flagsmith: every must be 1-59 seconds or 1-59 whole minutes, not %', every;
+    RAISE EXCEPTION 'pgsmith: every must be 1-59 seconds or 1-59 whole minutes, not %', every;
   END IF;
   EXECUTE 'SELECT cron.schedule($1, $2, $3)' INTO jid
-    USING 'pg_flagsmith_sync', sched, 'CALL flagsmith.sync_run()';
+    USING 'pgsmith_sync', sched, 'CALL flagsmith.sync_run()';
   RETURN jid;
 END $$;
 
@@ -411,7 +411,7 @@ SET search_path = pg_catalog, flagsmith, pg_temp AS $$
 DECLARE ok boolean;
 BEGIN
   IF flagsmith._ext_schema('pg_cron') IS NULL THEN RETURN false; END IF;
-  EXECUTE 'SELECT cron.unschedule(jobid) FROM cron.job WHERE jobname = $1' INTO ok USING 'pg_flagsmith_sync';
+  EXECUTE 'SELECT cron.unschedule(jobid) FROM cron.job WHERE jobname = $1' INTO ok USING 'pgsmith_sync';
   RETURN coalesce(ok, false);
 END $$;
 

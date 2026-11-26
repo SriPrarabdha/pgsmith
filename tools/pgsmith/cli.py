@@ -1,13 +1,13 @@
-"""pg-flagsmith: keep Postgres in sync with Flagsmith and prove they agree.
+"""pgsmith: keep Postgres in sync with Flagsmith and prove they agree.
 
-  pg-flagsmith sync    --once | --poll SECONDS      mirror environments into Postgres
-  pg-flagsmith serve   [--port 8080] [--poll 30]    webhook receiver + polling backstop
-  pg-flagsmith events  --once | --poll SECONDS      deliver queued exposures/events to Flagsmith
-  pg-flagsmith parity  --population SQL [--sample N] live check against the official SDK
-  pg-flagsmith install [--tle]                      install the extension into a database
-  pg-flagsmith health                               flagsmith.health() as a table
+  pgsmith sync    --once | --poll SECONDS      mirror environments into Postgres
+  pgsmith serve   [--port 8080] [--poll 30]    webhook receiver + polling backstop
+  pgsmith events  --once | --poll SECONDS      deliver queued exposures/events to Flagsmith
+  pgsmith parity  --population SQL [--sample N] live check against the official SDK
+  pgsmith install [--tle]                      install the extension into a database
+  pgsmith health                               flagsmith.health() as a table
 
-Configuration comes from flags or the environment: PGFS_DSN, FLAGSMITH_API_URL,
+Configuration comes from flags or the environment: PGSMITH_DSN, FLAGSMITH_API_URL,
 FLAGSMITH_SERVER_KEYS (comma-separated server-side environment keys),
 FLAGSMITH_WEBHOOK_SECRET, FLAGSMITH_EVENTS_URL.
 """
@@ -23,7 +23,7 @@ import time
 
 
 def _common(ap: argparse.ArgumentParser) -> None:
-    ap.add_argument("--dsn", default=os.environ.get("PGFS_DSN"), help="Postgres connection string (PGFS_DSN)")
+    ap.add_argument("--dsn", default=os.environ.get("PGSMITH_DSN"), help="Postgres connection string (PGSMITH_DSN)")
     ap.add_argument("--api", default=os.environ.get("FLAGSMITH_API_URL", "https://edge.api.flagsmith.com/api/v1/"),
                     help="Flagsmith API URL (FLAGSMITH_API_URL)")
     ap.add_argument("--server-key", action="append", default=None,
@@ -38,7 +38,7 @@ def _keys(a) -> list[str]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(prog="pg-flagsmith", description=__doc__,
+    ap = argparse.ArgumentParser(prog="pgsmith", description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("-v", "--verbose", action="store_true")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -68,25 +68,25 @@ def main(argv: list[str] | None = None) -> int:
                    help="events endpoint (default: <api>/events, or events.api.flagsmith.com for Flagsmith SaaS)")
     s.add_argument("--batch-size", type=int, default=1000)
 
-    s = sub.add_parser("parity", help="compare pg_flagsmith with the official SDK on real identities")
+    s = sub.add_parser("parity", help="compare pgsmith with the official SDK on real identities")
     _common(s)
     s.add_argument("--population", required=True,
                    help="SQL returning (identifier, traits jsonb), e.g. 'SELECT id::text, traits FROM app.users'")
     s.add_argument("--sample", type=int, default=1000)
     s.add_argument("--json", action="store_true", help="print the full result as JSON")
 
-    s = sub.add_parser("install", help="install pg_flagsmith into a database")
-    s.add_argument("--dsn", default=os.environ.get("PGFS_DSN"))
+    s = sub.add_parser("install", help="install pgsmith into a database")
+    s.add_argument("--dsn", default=os.environ.get("PGSMITH_DSN"))
     s.add_argument("--tle", action="store_true", help="install as a Trusted Language Extension (Supabase, RDS)")
 
     s = sub.add_parser("health", help="print flagsmith.health()")
-    s.add_argument("--dsn", default=os.environ.get("PGFS_DSN"))
+    s.add_argument("--dsn", default=os.environ.get("PGSMITH_DSN"))
 
     a = ap.parse_args(argv)
     logging.basicConfig(level=logging.DEBUG if a.verbose else logging.INFO,
                         format="%(asctime)s %(levelname)s %(name)s %(message)s")
     if not getattr(a, "dsn", None):
-        sys.exit("no database: pass --dsn or set PGFS_DSN")
+        sys.exit("no database: pass --dsn or set PGSMITH_DSN")
 
     if a.cmd == "sync":
         from .sync import Syncer
@@ -133,7 +133,7 @@ def main(argv: list[str] | None = None) -> int:
 def _install(dsn: str, tle: bool) -> int:
     import psycopg
     dist = pathlib.Path(__file__).resolve().parents[2] / "extension" / "dist"
-    files = sorted(dist.glob("pg_flagsmith--*.pgtle.sql" if tle else "pg_flagsmith--*.sql"))
+    files = sorted(dist.glob("pgsmith--*.pgtle.sql" if tle else "pgsmith--*.sql"))
     files = [f for f in files if tle or not f.name.endswith(".pgtle.sql")]
     if not files:
         sys.exit("build the extension first: python extension/build.py")
@@ -141,11 +141,11 @@ def _install(dsn: str, tle: bool) -> int:
         if tle:
             c.execute(files[-1].read_text())
         else:
-            avail = c.execute("SELECT count(*) FROM pg_available_extensions WHERE name = 'pg_flagsmith'").fetchone()[0]
+            avail = c.execute("SELECT count(*) FROM pg_available_extensions WHERE name = 'pgsmith'").fetchone()[0]
             if not avail:
-                sys.exit("pg_flagsmith is not installed on the server: run `make install` there, or use --tle")
-            c.execute("CREATE EXTENSION IF NOT EXISTS pg_flagsmith")
-        print(c.execute("SELECT extversion FROM pg_extension WHERE extname = 'pg_flagsmith'").fetchone()[0])
+                sys.exit("pgsmith is not installed on the server: run `make install` there, or use --tle")
+            c.execute("CREATE EXTENSION IF NOT EXISTS pgsmith")
+        print(c.execute("SELECT extversion FROM pg_extension WHERE extname = 'pgsmith'").fetchone()[0])
     return 0
 
 

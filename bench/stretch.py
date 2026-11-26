@@ -30,11 +30,11 @@ sys.path.insert(0, str(ROOT / "bench"))
 
 from profile import build as build_profile  # noqa: E402
 
-from tools.pgflagsmith.events import Sender  # noqa: E402
-from tools.pgflagsmith.sync import document_to_load_args  # noqa: E402
+from tools.pgsmith.events import Sender  # noqa: E402
+from tools.pgsmith.sync import document_to_load_args  # noqa: E402
 
-BENCH_DSN = os.environ.get("PGFS_BENCH_DSN", "postgresql://postgres:pgfs@127.0.0.1:55499/pgfs")
-APPDB_DSN = os.environ.get("PGFS_APPDB_DSN", "postgresql://postgres:pgfs@127.0.0.1:55433/postgres")
+BENCH_DSN = os.environ.get("PGSMITH_BENCH_DSN", "postgresql://postgres:pgfs@127.0.0.1:55499/pgfs")
+APPDB_DSN = os.environ.get("PGSMITH_APPDB_DSN", "postgresql://postgres:pgfs@127.0.0.1:55433/postgres")
 
 
 def docker(args: str) -> subprocess.CompletedProcess:
@@ -151,9 +151,9 @@ def bench_mapper(conn, real_doc: dict | None) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 def pgbench(script: str, clients: int, seconds: int = 15, options: str = "") -> dict:
-    docker(f"exec -i pgfs-bench sh -c 'cat > /tmp/b.sql' <<'EOF'\n{script}\nEOF")
+    docker(f"exec -i pgsmith-bench sh -c 'cat > /tmp/b.sql' <<'EOF'\n{script}\nEOF")
     env = f"-e PGOPTIONS='{options}' " if options else ""
-    r = docker(f"exec {env}pgfs-bench pgbench -n -M prepared -c {clients} -j {min(clients, 16)} -T {seconds} "
+    r = docker(f"exec {env}pgsmith-bench pgbench -n -M prepared -c {clients} -j {min(clients, 16)} -T {seconds} "
                f"-f /tmp/b.sql -U postgres pgfs")
     tps = lat = None
     for line in r.stdout.splitlines():
@@ -267,11 +267,11 @@ def bench_in_db_sync() -> dict | None:
         db = psycopg.connect(APPDB_DSN, autocommit=True, connect_timeout=3)
     except psycopg.OperationalError:
         return None
-    from tools.pgflagsmith.admin import FlagsmithAdmin
+    from tools.pgsmith.admin import FlagsmithAdmin
     fs = FlagsmithAdmin(env["FLAGSMITH_API_URL"], token=env["FLAGSMITH_TOKEN"])
     feat = {f["name"]: f for f in fs.features(int(env["FLAGSMITH_PROJECT_ID"]))}["max_upload_mb"]
     out = {}
-    secret = "pgfs_bench_" + uuid.uuid4().hex[:6]
+    secret = "pgsmith_bench_" + uuid.uuid4().hex[:6]
     db.execute("SELECT vault.create_secret(%s, %s)", (env["PROD_SERVER_KEY"], secret))
     db.execute("UPDATE flagsmith.remote_source SET enabled = false")
     try:
@@ -310,7 +310,7 @@ def bench_in_db_sync() -> dict | None:
 
 
 def render(r: dict) -> str:
-    L = ["# pg_flagsmith stretch-tier benchmarks", "",
+    L = ["# pgsmith stretch-tier benchmarks", "",
          f"Machine: {r['machine']}. Mapper and queue on the benchmark container (PostgreSQL 17, the same "
          "settings as RESULTS.md); in-database sync on the compose stack (Supabase Postgres 17 + self-hosted "
          "Flagsmith 2.295.2, same host). Reproduce: `bench/run.sh && python bench/stretch.py`.", "",
@@ -328,7 +328,7 @@ def render(r: dict) -> str:
         for t, v in r["in_db_sync"].items():
             L.append(f"| {t} | {v['unchanged_run_ms']:.1f} ms | {v['change_run_ms']:.0f} ms |")
         L += ["", "One run fetches, maps, loads and publishes. With `schedule_sync('30 seconds')` a change is served "
-              "within 30 s plus this; `pg-flagsmith serve` (webhook) serves it within about a second. pg_net hands "
+              "within 30 s plus this; `pgsmith serve` (webhook) serves it within about a second. pg_net hands "
               "the request to its background worker, which adds about a second per run; `http` is synchronous.", ""]
     q = r["queue"]
     L += ["## Exposure queue", "", "Calls per second (pgbench, prepared, random identities):", "",
@@ -344,7 +344,7 @@ def render(r: dict) -> str:
     L += ["", f"- Bulk enqueue (one statement): {q['bulk_enqueue_per_s']:,.0f} events/s; 1M queued events take "
           f"{q['queue_bytes_1m'] / 1e6:.0f} MB.",
           f"- Claiming in the database (DELETE ... SKIP LOCKED, dedupe, payload JSON): {q['claim_events_per_s']:,.0f} events/s.",
-          f"- End to end through `pg-flagsmith events` to a local HTTP sink: {q['cli_sender_events_per_s_1']:,.0f} events/s "
+          f"- End to end through `pgsmith events` to a local HTTP sink: {q['cli_sender_events_per_s_1']:,.0f} events/s "
           f"with one sender, {q['cli_sender_events_per_s_4']:,.0f} events/s with four (no event sent twice).",
           f"- After draining and VACUUM the queue's {q['queue_bytes_after_drain_vacuum'] / 1e6:.0f} MB of pages are free "
           "for new events (the table does not grow while it is drained).", ""]
@@ -367,7 +367,7 @@ def main() -> None:
     if envf.exists():
         env = dict(line.split("=", 1) for line in envf.read_text().splitlines() if "=" in line)
         try:
-            from tools.pgflagsmith.sync import fetch_document
+            from tools.pgsmith.sync import fetch_document
             real = fetch_document(env["FLAGSMITH_API_URL"], env["PROD_SERVER_KEY"], timeout=5)
         except Exception:  # noqa: BLE001
             real = None

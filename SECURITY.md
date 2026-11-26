@@ -1,6 +1,6 @@
 # Security
 
-pg_flagsmith keeps a read-only replica of Flagsmith configuration inside your database and evaluates it there. This
+pgsmith keeps a read-only replica of Flagsmith configuration inside your database and evaluates it there. This
 page describes what it trusts, what it defends against, how each defence is tested, and what remains your call.
 
 ## Trust model
@@ -15,12 +15,12 @@ page describes what it trusts, what it defends against, how each defence is test
 | `flagsmith_reader` | Evaluating flags. |
 | Everyone else (`PUBLIC`) | Nothing. |
 
-No role is granted any privilege on pg_flagsmith's tables (they also have row-level security enabled with no policies);
+No role is granted any privilege on pgsmith's tables (they also have row-level security enabled with no policies);
 each role reaches them only through the SECURITY DEFINER functions granted to it.
 
 ## Defences, and the tests that prove them
 
-**1. A caller's `search_path` can never redirect pg_flagsmith's code.** Every SQL function is SQL-standard
+**1. A caller's `search_path` can never redirect pgsmith's code.** Every SQL function is SQL-standard
 (`BEGIN ATOMIC`), so its names are resolved once, when it is created; every other routine pins
 `search_path = pg_catalog, flagsmith, pg_temp`. That includes the functions generated for each configuration
 snapshot, which stay inlinable (the planner still sees through them). The install script resolves its own names in
@@ -42,7 +42,7 @@ must match the reference engine exactly, with a canary table intact. (This found
 in the compiler that a crafted FlagShift patch could have abused.)
 
 **4. In-database sync keeps keys safe.**
-* Server-side keys live in Supabase Vault and are read only when a request is made; no pg_flagsmith table holds them.
+* Server-side keys live in Supabase Vault and are read only when a request is made; no pgsmith table holds them.
 * Only the owner can add or change a source (a source decides where a key is sent), so `flagsmith_loader` cannot
   exfiltrate a key by pointing a source at another URL.
 * URLs must be `https` (plain `http` needs `allow_insecure_http`, for local stacks), with no credentials, query,
@@ -51,7 +51,7 @@ in the compiler that a crafted FlagShift patch could have abused.)
   Any failure rolls back and the last snapshot keeps serving.
 * Transport `http` (the default where the extension is installed) keeps the key and the document in memory. With
   `pg_net`, the key sits in `net.http_request_queue` until the worker sends it, and the document lands in
-  `net._http_response`; Supabase grants both tables to `anon` and `authenticated`. pg_flagsmith deletes its responses
+  `net._http_response`; Supabase grants both tables to `anon` and `authenticated`. pgsmith deletes its responses
   as soon as it reads them, and `flagsmith.sync_status()` names the roles that can read those tables.
 *Tests:* `tests/remote/test_in_db_sync.py` (validation, failures keep serving, key header, no leftover responses).
 
@@ -87,14 +87,14 @@ test case are pinned by commit and checksum. `bandit` reports nothing in the shi
   set `compile = false` for that environment: the interpreter keeps everything in protected tables.
 * **End users.** Do not grant `flagsmith_reader` to Supabase's `anon` or `authenticated`. Readers can evaluate any
   identifier with any traits (as Flagsmith's client-side API allows), and trackers can record exposures for anyone.
-  Expose a wrapper bound to the caller instead (see README, *Supabase: flags for the signed-in user*).
+  Expose a wrapper bound to the caller instead (see [docs/sql-reference.md](docs/sql-reference.md#supabase-flags-for-the-signed-in-user)).
 * **Readers can evaluate any snapshot by id**, including FlagShift candidates (evaluation results only, never the
   configuration itself).
 * **Trait values are yours.** REGEX conditions run against trait strings; cap trait sizes in your application and set
   `statement_timeout` for request paths.
 * **Plain `http`** between Postgres and Flagsmith exposes the server-side key on the network; use it only on a
   private network (`allow_insecure_http`).
-* **`pg-flagsmith parity --population`** runs the SQL you give it (read-only) with your credentials.
+* **`pgsmith parity --population`** runs the SQL you give it (read-only) with your credentials.
 * **The local stack** (`infra/docker-compose.yml`, `demos/`) uses development passwords and a demo admin account,
   bound to 127.0.0.1. Do not expose it.
 

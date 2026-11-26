@@ -1,0 +1,12 @@
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /
+    schedule: { interval: weekly }
+    # the engine and SDK are pinned on purpose: parity is defined against these versions
+    ignore:
+      - dependency-name: flagsmith
+      - dependency-name: flagsmith-flag-engine
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly }

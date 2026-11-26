@@ -1,5 +1,5 @@
 -- Narrow, privilege-checked access for the tools (FlagShift, parity, sync), so
--- that none of them needs privileges on pg_flagsmith's tables.
+-- that none of them needs privileges on pgsmith's tables.
 
 -- The live configuration of an environment (key, alias or name). It includes
 -- identity-override identifiers: planner and loader only.
@@ -34,10 +34,10 @@ DECLARE ek text;
 BEGIN
   SELECT e.env_key INTO ek FROM flagsmith.environment e WHERE e.env_key = load_candidate.env_key;
   IF ek IS NULL THEN
-    RAISE EXCEPTION 'pg_flagsmith: environment % is not mirrored here', env_key;
+    RAISE EXCEPTION 'pgsmith: environment % is not mirrored here', env_key;
   END IF;
   IF octet_length(ctx::text) > 67108864 THEN
-    RAISE EXCEPTION 'pg_flagsmith: candidate context over 64 MB';
+    RAISE EXCEPTION 'pgsmith: candidate context over 64 MB';
   END IF;
   RETURN flagsmith.load_context(ctx, env_key => ek, source => 'flagshift', kind => 'candidate',
                                 identity_overrides => identity_overrides);
@@ -63,7 +63,7 @@ LANGUAGE sql STABLE SECURITY DEFINER
 SET search_path = pg_catalog, flagsmith, pg_temp AS $$
   SELECT e.env_key, e.name, e.alias, e.is_default, e.current_snapshot, coalesce(s.compiled, false)
   FROM flagsmith.environment e LEFT JOIN flagsmith.snapshot s ON s.snapshot_id = e.current_snapshot
-  WHERE e.env_key <> '__pg_flagsmith_test__'
+  WHERE e.env_key <> '__pgsmith_test__'
   ORDER BY e.is_default DESC, e.env_key
 $$;
 

@@ -1,4 +1,4 @@
-"""The exposure queue and the CLI sender (pg-flagsmith events), against an
+"""The exposure queue and the CLI sender (pgsmith events), against an
 in-process stand-in for the events API."""
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ import psycopg
 import pytest
 
 from tests.conftest import DSN
-from tools.pgflagsmith.events import Sender
+from tools.pgsmith.events import Sender
 
 
 @pytest.fixture()

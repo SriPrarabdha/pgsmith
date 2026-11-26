@@ -1,4 +1,4 @@
-# pg_flagsmith stretch-tier benchmarks
+# pgsmith stretch-tier benchmarks
 
 Machine: AMD Ryzen 9 9950X3D 16-Core Processor, 32 cores. Mapper and queue on the benchmark container (PostgreSQL 17, the same settings as RESULTS.md); in-database sync on the compose stack (Supabase Postgres 17 + self-hosted Flagsmith 2.295.2, same host). Reproduce: `bench/run.sh && python bench/stretch.py`.
 
@@ -20,7 +20,7 @@ Loads include normalisation, compilation and publishing (and, for the pusher, se
 | http | 22.1 ms | 39 ms |
 | pg_net | 1031.5 ms | 1021 ms |
 
-One run fetches, maps, loads and publishes. With `schedule_sync('30 seconds')` a change is served within 30 s plus this; `pg-flagsmith serve` (webhook) serves it within about a second. pg_net hands the request to its background worker, which adds about a second per run; `http` is synchronous.
+One run fetches, maps, loads and publishes. With `schedule_sync('30 seconds')` a change is served within 30 s plus this; `pgsmith serve` (webhook) serves it within about a second. pg_net hands the request to its background worker, which adds about a second per run; `http` is synchronous.
 
 ## Exposure queue
 
@@ -37,6 +37,6 @@ Recording costs the same as a plain INSERT: throughput is bound by commits (WAL 
 
 - Bulk enqueue (one statement): 188,768 events/s; 1M queued events take 132 MB.
 - Claiming in the database (DELETE ... SKIP LOCKED, dedupe, payload JSON): 186,240 events/s.
-- End to end through `pg-flagsmith events` to a local HTTP sink: 131,187 events/s with one sender, 268,473 events/s with four (no event sent twice).
+- End to end through `pgsmith events` to a local HTTP sink: 131,187 events/s with one sender, 268,473 events/s with four (no event sent twice).
 - After draining and VACUUM the queue's 38 MB of pages are free for new events (the table does not grow while it is drained).
 

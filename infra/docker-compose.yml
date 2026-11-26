@@ -1,15 +1,15 @@
-# Local stack for pg_flagsmith development and the demos. Development credentials only:
+# Local stack for pgsmith development and the demos. Development credentials only:
 # every port is bound to 127.0.0.1; do not expose this stack.
 #
 #   flagsmith       self-hosted Flagsmith (API + UI) on http://localhost:8000, experimentation on
 #   flagsmith-db    Flagsmith's own Postgres
 #   appdb           the application database: Supabase's Postgres image (pg_tle preinstalled)
-#   sync            pg-flagsmith sync: mirrors Flagsmith environments into appdb (webhook + poll)
+#   sync            pgsmith sync: mirrors Flagsmith environments into appdb (webhook + poll)
 #
 #   docker compose -f infra/docker-compose.yml up -d flagsmith appdb
 #   python demos/seed_flagsmith.py          # creates the demo project, prints the keys
 #   FLAGSMITH_SERVER_KEYS=ser.xxx,ser.yyy docker compose -f infra/docker-compose.yml up -d sync
-name: pgflagsmith
+name: pgsmith
 
 x-flagsmith-env: &flagsmith-env
   DATABASE_URL: postgresql://postgres:password@flagsmith-db:5432/flagsmith
@@ -63,7 +63,7 @@ services:
       - 127.0.0.1:55433:5432
     volumes:
       - appdb-data:/var/lib/postgresql/data
-      - ../extension/dist:/pg_flagsmith:ro
+      - ../extension/dist:/pgsmith:ro
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U postgres -h 127.0.0.1']
       interval: 2s
@@ -76,9 +76,9 @@ services:
       dockerfile: tools/Dockerfile
     # local stack only (the port is bound to 127.0.0.1): unsigned webhooks are accepted when no
     # secret is set; in production set FLAGSMITH_WEBHOOK_SECRET and drop --allow-unsigned-webhooks
-    command: [pg-flagsmith, serve, --host, 0.0.0.0, --poll, '30', --port, '8080', --allow-unsigned-webhooks]
+    command: [pgsmith, serve, --host, 0.0.0.0, --poll, '30', --port, '8080', --allow-unsigned-webhooks]
     environment:
-      PGFS_DSN: postgresql://postgres:pgfs@appdb:5432/postgres
+      PGSMITH_DSN: postgresql://postgres:pgfs@appdb:5432/postgres
       FLAGSMITH_API_URL: http://flagsmith:8000/api/v1/
       FLAGSMITH_SERVER_KEYS: ${FLAGSMITH_SERVER_KEYS:-}
       FLAGSMITH_WEBHOOK_SECRET: ${FLAGSMITH_WEBHOOK_SECRET:-}

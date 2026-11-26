@@ -1,6 +1,6 @@
 -- Operations: publishing, garbage collection, the emergency pin, health.
 
--- The extension's own name ('pg_flagsmith', or '<handle>@pg_flagsmith' from database.dev).
+-- The extension's own name ('pgsmith', or '<handle>@pgsmith' from database.dev).
 CREATE FUNCTION flagsmith._ext_name() RETURNS text
 LANGUAGE sql STABLE
 BEGIN ATOMIC
@@ -138,7 +138,7 @@ BEGIN
       n := n + 1;
     EXCEPTION WHEN dependent_objects_still_exist THEN
       -- a user view or function calls this snapshot's compiled function: keep it
-      RAISE WARNING 'pg_flagsmith: snapshot % is still referenced (%); not collected', r.snapshot_id, SQLERRM;
+      RAISE WARNING 'pgsmith: snapshot % is still referenced (%); not collected', r.snapshot_id, SQLERRM;
     END;
   END LOOP;
   -- the load log keeps 30 days, and at least the last 100 entries per environment
@@ -173,10 +173,10 @@ DECLARE ek text;
 BEGIN
   SELECT e.env_key INTO ek FROM flagsmith.environment e WHERE e.env_key = env OR e.alias = env OR e.name = env
   ORDER BY (e.env_key = env) DESC LIMIT 1;
-  IF ek IS NULL THEN RAISE EXCEPTION 'pg_flagsmith: unknown environment %', env; END IF;
+  IF ek IS NULL THEN RAISE EXCEPTION 'pgsmith: unknown environment %', env; END IF;
   IF NOT EXISTS (SELECT 1 FROM flagsmith.snapshot s WHERE s.snapshot_id = pin.snapshot_id
                  AND s.env_key = ek AND s.kind IN ('live', 'candidate')) THEN
-    RAISE EXCEPTION 'pg_flagsmith: snapshot % is not a live or candidate snapshot of %', snapshot_id, ek;
+    RAISE EXCEPTION 'pgsmith: snapshot % is not a live or candidate snapshot of %', snapshot_id, ek;
   END IF;
   PERFORM pg_advisory_xact_lock(hashtextextended('flagsmith:' || ek, 0));
   IF NOT (SELECT s.compiled FROM flagsmith.snapshot s WHERE s.snapshot_id = pin.snapshot_id)
@@ -196,7 +196,7 @@ DECLARE ek text; latest bigint;
 BEGIN
   SELECT e.env_key INTO ek FROM flagsmith.environment e WHERE e.env_key = env OR e.alias = env OR e.name = env
   ORDER BY (e.env_key = env) DESC LIMIT 1;
-  IF ek IS NULL THEN RAISE EXCEPTION 'pg_flagsmith: unknown environment %', env; END IF;
+  IF ek IS NULL THEN RAISE EXCEPTION 'pgsmith: unknown environment %', env; END IF;
   PERFORM pg_advisory_xact_lock(hashtextextended('flagsmith:' || ek, 0));
   SELECT max(s.snapshot_id) INTO latest FROM flagsmith.snapshot s WHERE s.env_key = ek AND s.kind = 'live';
   UPDATE flagsmith.environment e SET pinned = false, current_snapshot = coalesce(latest, e.current_snapshot)
@@ -254,11 +254,11 @@ SET search_path = pg_catalog, flagsmith, pg_temp AS $$
                      FROM flagsmith.snapshot_warning sw WHERE sw.snapshot_id = e.current_snapshot) w ON true
   LEFT JOIN LATERAL (SELECT pr.started_at, pr.mismatches FROM flagsmith.parity_run pr
                      WHERE pr.env_key = e.env_key ORDER BY pr.run_id DESC LIMIT 1) p ON true
-  WHERE e.env_key <> '__pg_flagsmith_test__'
+  WHERE e.env_key <> '__pgsmith_test__'
   ORDER BY e.is_default DESC, e.env_key
 $$;
 
--- Record a live parity check result (used by `pg-flagsmith parity`).
+-- Record a live parity check result (used by `pgsmith parity`).
 CREATE FUNCTION flagsmith.record_parity(env text, snapshot_id bigint, oracle text, identities int,
                                         flags_compared bigint, mismatches int, details jsonb)
 RETURNS bigint

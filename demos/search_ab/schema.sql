@@ -1,6 +1,6 @@
 -- Demo 2: A/B testing a SQL ranking query.
 -- The ranking formula is the experiment. Postgres picks each user's arm with the
--- same bucketing as the Flagsmith SDKs (pg_flagsmith) and ranks with that arm's
+-- same bucketing as the Flagsmith SDKs (pgsmith) and ranks with that arm's
 -- formula in the same query; Flagsmith Experimentation decides which ranking wins.
 
 CREATE SCHEMA IF NOT EXISTS shop;

@@ -1,4 +1,4 @@
-"""REGEX: Python `re.match(pattern, s)` vs pg_flagsmith's translation to a Postgres ARE."""
+"""REGEX: Python `re.match(pattern, s)` vs pgsmith's translation to a Postgres ARE."""
 from __future__ import annotations
 
 import os
@@ -9,7 +9,7 @@ import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
-N = int(os.environ.get("PGFS_FUZZ_EXAMPLES", "300"))
+N = int(os.environ.get("PGSMITH_FUZZ_EXAMPLES", "300"))
 
 LIT = st.sampled_from(list("abcxyzABZ019_- @.é٣Ⅳ") + ["\\.", "\\-", "\\+", "\\(", "\\[", "\\\\", "\\n", "\\t",
                                                        "\\x41", "\\u00e9", "\\{", "{", "}", "]", ","])

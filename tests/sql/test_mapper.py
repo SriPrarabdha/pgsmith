@@ -8,7 +8,7 @@ Python SDK's mapper, and against the mapper test case of engine-test-data.
     documented SDK-version differences, and the same evaluation;
   * the live documents of the local Flagsmith (when demos/.env is present).
 
-    PGFS_MAPPER_EXAMPLES=2000 pytest tests/sql/test_mapper.py
+    PGSMITH_MAPPER_EXAMPLES=2000 pytest tests/sql/test_mapper.py
 """
 from __future__ import annotations
 
@@ -26,9 +26,9 @@ from flag_engine.engine import get_evaluation_result
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
-from tools.pgflagsmith.sync import document_to_load_args, dumps
+from tools.pgsmith.sync import document_to_load_args, dumps
 
-N = int(os.environ.get("PGFS_MAPPER_EXAMPLES", "300"))
+N = int(os.environ.get("PGSMITH_MAPPER_EXAMPLES", "300"))
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 # engine-test-data: "Add mapper test cases for environment document to evaluation context conversion"
@@ -381,7 +381,7 @@ def _local_docs() -> list[dict]:
     if not env.exists():
         return []
     vals = dict(line.split("=", 1) for line in env.read_text().splitlines() if "=" in line and not line.startswith("#"))
-    from tools.pgflagsmith.sync import fetch_document
+    from tools.pgsmith.sync import fetch_document
     docs = []
     for k in ("PROD_SERVER_KEY", "STAGING_SERVER_KEY"):
         try:

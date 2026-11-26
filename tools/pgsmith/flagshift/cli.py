@@ -73,7 +73,7 @@ def plan(conn, a) -> tuple[dict, int]:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="flagshift", description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--dsn", default=os.environ.get("PGFS_DSN"))
+    ap.add_argument("--dsn", default=os.environ.get("PGSMITH_DSN"))
     sub = ap.add_subparsers(dest="cmd", required=True)
     for name in ("plan", "apply"):
         p = sub.add_parser(name)
@@ -99,7 +99,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("env")
     a = ap.parse_args(argv)
     if not a.dsn:
-        sys.exit("flagshift: pass --dsn or set PGFS_DSN")
+        sys.exit("flagshift: pass --dsn or set PGSMITH_DSN")
 
     with psycopg.connect(a.dsn, autocommit=True) as conn:
         if a.cmd == "pin":

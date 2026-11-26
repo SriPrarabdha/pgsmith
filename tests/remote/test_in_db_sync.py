@@ -22,9 +22,9 @@ import psycopg
 import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-APPDB = os.environ.get("PGFS_APPDB_DSN", "postgresql://postgres:pgfs@127.0.0.1:55433/postgres")
+APPDB = os.environ.get("PGSMITH_APPDB_DSN", "postgresql://postgres:pgfs@127.0.0.1:55433/postgres")
 MOCK_HOST = "http://127.0.0.1:18080"
-MOCK_NET = "http://pgfs-mock:8080"
+MOCK_NET = "http://pgsmith-mock:8080"
 FLAGSMITH_NET = "http://flagsmith:8000/api/v1/"
 
 
@@ -56,7 +56,7 @@ def db(env):
     except psycopg.OperationalError:
         pytest.skip("compose appdb not running")
     have = {r[0] for r in c.execute("SELECT extname FROM pg_extension").fetchall()}
-    missing = {"pg_flagsmith", "http", "pg_net", "pg_cron", "supabase_vault"} - have
+    missing = {"pgsmith", "http", "pg_net", "pg_cron", "supabase_vault"} - have
     if missing:
         pytest.skip(f"appdb lacks {missing}")
     yield c
@@ -83,8 +83,8 @@ class Mock:
 
 @pytest.fixture(scope="module")
 def mock(db):
-    if _docker("inspect pgfs-mock").returncode != 0:
-        r = _docker(f"run -d --rm --name pgfs-mock --network pgflagsmith_default -p 127.0.0.1:18080:8080 "
+    if _docker("inspect pgsmith-mock").returncode != 0:
+        r = _docker(f"run -d --rm --name pgsmith-mock --network pgsmith_default -p 127.0.0.1:18080:8080 "
                     f"-v {ROOT / 'tests' / 'remote'}:/m:ro python:3.12-slim python /m/mock_flagsmith.py 8080")
         if r.returncode != 0:
             pytest.skip(f"cannot start the mock: {r.stderr}")
@@ -103,7 +103,7 @@ def secrets(db):
     made = []
 
     def make(value: str) -> str:
-        name = "pgfs_it_" + uuid.uuid4().hex[:8]
+        name = "pgsmith_it_" + uuid.uuid4().hex[:8]
         db.execute("SELECT vault.create_secret(%s, %s)", (value, name))
         made.append(name)
         return name
@@ -193,7 +193,7 @@ def test_pg_net_transport_and_sync_run(db, env, secrets, sources):
 
 
 def test_a_flag_change_reaches_postgres(db, env, secrets, sources):
-    from tools.pgflagsmith.admin import FlagsmithAdmin
+    from tools.pgsmith.admin import FlagsmithAdmin
     fs = FlagsmithAdmin(env["FLAGSMITH_API_URL"], token=env["FLAGSMITH_TOKEN"])
     feat = {f["name"]: f for f in fs.features(int(env["FLAGSMITH_PROJECT_ID"]))}["max_upload_mb"]
     name = sources("it_prod_change", FLAGSMITH_NET, secrets(env["PROD_SERVER_KEY"]), allow_insecure_http=True)
@@ -216,7 +216,7 @@ def test_a_flag_change_reaches_postgres(db, env, secrets, sources):
 
 
 def _doc(env, api_key="it_mock_env"):
-    from tools.pgflagsmith.sync import fetch_document
+    from tools.pgsmith.sync import fetch_document
     d = fetch_document(env["FLAGSMITH_API_URL"], env["PROD_SERVER_KEY"])
     d["api_key"] = api_key
     d["name"] = "it mock"
@@ -234,7 +234,7 @@ def test_failures_keep_the_last_snapshot_serving(db, env, mock, secrets, sources
     assert outcome == "loaded"
     req = mock.requests(path)[-1]
     assert req["headers"]["X-Environment-Key"] == key
-    assert req["headers"]["User-Agent"].startswith("pg_flagsmith/")
+    assert req["headers"]["User-Agent"].startswith("pgsmith/")
     (_, outcome, _, _), = tick(db, name)
     assert outcome == "unchanged"                       # same body: recognised by its hash
     # never conditional (Flagsmith's Last-Modified can trail a change)
@@ -333,7 +333,7 @@ def test_event_delivery_failures(db, env, mock, secrets, sources, transport):
     sent = json.loads(mock.requests("/ev")[-1]["body"])["events"]
     assert len(sent) == 5 and sent[0]["event"] == "$flag_exposure" and sent[0]["feature_name"] == "f"
     assert sent[0]["value"] == "a" and sent[0]["traits"] == {"plan": "pro"}
-    assert sent[0]["metadata"]["sdk_version"].startswith("pg_flagsmith/") and isinstance(sent[0]["timestamp"], int)
+    assert sent[0]["metadata"]["sdk_version"].startswith("pgsmith/") and isinstance(sent[0]["timestamp"], int)
     assert mock.requests("/ev")[-1]["headers"]["X-Environment-Key"] == key
     # 400: dropped, counted as rejected
     mock.route("/ev", 400, "bad")

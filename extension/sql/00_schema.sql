@@ -1,4 +1,4 @@
--- pg_flagsmith: Flagsmith feature flag evaluation inside Postgres.
+-- pgsmith: Flagsmith feature flag evaluation inside Postgres.
 --
 -- Parity contract: for the same EvaluationContext, every evaluation function
 -- returns what flagsmith-flag-engine (Python, the reference implementation)
@@ -11,17 +11,17 @@
 DO $$
 BEGIN
   IF current_setting('server_version_num')::int < 140000 THEN
-    RAISE EXCEPTION 'pg_flagsmith requires PostgreSQL 14 or later';
+    RAISE EXCEPTION 'pgsmith requires PostgreSQL 14 or later';
   END IF;
   IF getdatabaseencoding() <> 'UTF8' THEN
-    RAISE EXCEPTION 'pg_flagsmith requires a UTF8 database (Flagsmith hashes UTF-8 bytes)';
+    RAISE EXCEPTION 'pgsmith requires a UTF8 database (Flagsmith hashes UTF-8 bytes)';
   END IF;
 END $$;
 
 CREATE SCHEMA flagsmith;
-COMMENT ON SCHEMA flagsmith IS 'pg_flagsmith: Flagsmith flag evaluation (read-only replica of Flagsmith configuration)';
+COMMENT ON SCHEMA flagsmith IS 'pgsmith: Flagsmith flag evaluation (read-only replica of Flagsmith configuration)';
 CREATE SCHEMA flagsmith_c;
-COMMENT ON SCHEMA flagsmith_c IS 'pg_flagsmith: generated per-snapshot evaluation functions (compiled tier)';
+COMMENT ON SCHEMA flagsmith_c IS 'pgsmith: generated per-snapshot evaluation functions (compiled tier)';
 
 REVOKE ALL ON SCHEMA flagsmith FROM PUBLIC;
 REVOKE ALL ON SCHEMA flagsmith_c FROM PUBLIC;
@@ -241,7 +241,7 @@ CREATE TABLE flagsmith.snapshot_warning (
 );
 CREATE INDEX snapshot_warning_snapshot ON flagsmith.snapshot_warning (snapshot_id);
 
--- Results of live parity checks (pg-flagsmith parity), read by health().
+-- Results of live parity checks (pgsmith parity), read by health().
 CREATE TABLE flagsmith.parity_run (
   run_id       bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   env_key      text NOT NULL,

@@ -1,21 +1,17 @@
 # Demos
 
 Both demos run against the local stack: self-hosted Flagsmith 2.295.2 with experimentation enabled, and a Supabase
-Postgres with pg_flagsmith installed through pg_tle.
+Postgres with pgsmith installed through pg_tle.
 
 ```bash
-make venv
-docker compose -f infra/docker-compose.yml up -d flagsmith appdb
-python extension/build.py
-export PGFS_DSN=postgresql://postgres:pgfs@127.0.0.1:55433/postgres
-.venv/bin/pg-flagsmith install --tle                         # pg_flagsmith via pg_tle, as on Supabase
-.venv/bin/python demos/seed_flagsmith.py                     # project "Shop": Staging + Production -> demos/.env
+make quickstart        # Flagsmith + Supabase Postgres + pgsmith (pg_tle) + demo users, seeded and synced
 set -a; . demos/.env; set +a
-psql "$PGFS_DSN" -f demos/sql/app_users.sql                  # 100k synthetic users with traits
-.venv/bin/pg-flagsmith sync --api $FLAGSMITH_API_URL --server-key $PROD_SERVER_KEY --server-key $STAGING_SERVER_KEY
-.venv/bin/pg-flagsmith parity --api $FLAGSMITH_API_URL --server-key $PROD_SERVER_KEY \
+export PGSMITH_DSN=postgresql://postgres:pgfs@127.0.0.1:55433/postgres
+.venv/bin/pgsmith parity --api "$FLAGSMITH_API_URL" --server-key "$PROD_SERVER_KEY" \
     --population "SELECT identifier, traits FROM app.users" --sample 10000
 ```
+
+`scripts/quickstart.sh` shows each step (compose, seed, `pgsmith install --tle`, demo data, `pgsmith sync`).
 
 ## Demo 1: FlagShift, `terraform plan` for flag changes
 
@@ -43,15 +39,15 @@ psql "$PGFS_DSN" -f demos/sql/app_users.sql                  # 100k synthetic us
 The ranking formula is the experiment: `control` ranks by text relevance, `boosted` blends in 30-day sales.
 
 ```bash
-psql "$PGFS_DSN" -f demos/search_ab/schema.sql                      # 200k products, shop.search(), shop.rank()
-psql "$PGFS_DSN" -c "SELECT * FROM shop.overlap_at_10(ARRAY['wireless headphones','smart watch','camera'])"
+psql "$PGSMITH_DSN" -f demos/search_ab/schema.sql                      # 200k products, shop.search(), shop.rank()
+psql "$PGSMITH_DSN" -c "SELECT * FROM shop.overlap_at_10(ARRAY['wireless headphones','smart watch','camera'])"
 .venv/bin/python demos/search_ab/simulate.py --users 3000          # SIMULATED traffic
-psql "$PGFS_DSN" -c "SELECT * FROM shop.experiment_results"
+psql "$PGSMITH_DSN" -c "SELECT * FROM shop.experiment_results"
 ```
 
 1. **One search, two users, two rankings, same SQL.** `shop.search(user, traits, 'wireless headphones')` evaluates
    `flagsmith.variant('search_ranking', ...)` once per request (a `MATERIALIZED` CTE) and orders by that arm's formula.
-2. **Parity on screen.** `pg-flagsmith parity` compares the SDK and Postgres for 10,000 identities: 0 mismatches. This
+2. **Parity on screen.** `pgsmith parity` compares the SDK and Postgres for 10,000 identities: 0 mismatches. This
    is what makes the experiment valid: an exposure attributed to the wrong arm would turn the result into noise.
 3. **Check before launching.** `shop.overlap_at_10` replays searches through both arms; a mean top-10 overlap of
    ~0.4 means the arms differ enough to be measured.
@@ -66,7 +62,7 @@ psql "$PGFS_DSN" -c "SELECT * FROM shop.experiment_results"
 **Exposures recorded in SQL.** `simulate.py --via-queue` records the same exposures and events with
 `flagsmith.track_exposure` / `flagsmith.track_event` instead of the SDK. The database delivers them to Flagsmith in
 batches: run `SELECT * FROM flagsmith.events_tick()`, or schedule it with `SELECT flagsmith.schedule_events()`, once the
-in-database sync below is set up. You can also run `pg-flagsmith events --once` outside the database.
+in-database sync below is set up. You can also run `pgsmith events --once` outside the database.
 `SELECT * FROM flagsmith.event_status()` shows queued, delivered and deduplicated counts.
 
 ## Demo 3: Postgres syncs itself (Supabase)

@@ -14,7 +14,7 @@ import pytest
 
 from tests.conftest import DSN
 
-CONTAINER = os.environ.get("PGFS_CONTAINER", "pgfs-dev")
+CONTAINER = os.environ.get("PGSMITH_CONTAINER", "pgsmith-dev")
 
 
 def sh(cmd: str) -> subprocess.CompletedProcess:
@@ -29,7 +29,7 @@ def dsn_for(db: str) -> str:
 
 @pytest.fixture()
 def dbs(conn):
-    names = [f"pgfs_life_{uuid.uuid4().hex[:6]}" for _ in range(2)]
+    names = [f"pgsmith_life_{uuid.uuid4().hex[:6]}" for _ in range(2)]
     for n in names:
         conn.execute(f"CREATE DATABASE {n}")
     yield names
@@ -48,10 +48,10 @@ def test_drop_extension_needs_no_cascade_and_dump_keeps_configuration(dbs):
                {"operator": "EQUAL", "property": "plan", "value": "pro"}]}],
                               "overrides": [{"key": "2", "name": "f", "enabled": False, "value": "o", "priority": 0}]}}}
     with psycopg.connect(dsn_for(src), autocommit=True) as c:
-        if not c.execute("SELECT count(*) FROM pg_available_extensions WHERE name = 'pg_flagsmith'").fetchone()[0]:
-            pytest.skip("pg_flagsmith is installed per database here (pg_tle)")
+        if not c.execute("SELECT count(*) FROM pg_available_extensions WHERE name = 'pgsmith'").fetchone()[0]:
+            pytest.skip("pgsmith is installed per database here (pg_tle)")
         c.execute("SET search_path = public, pg_temp")
-        c.execute("CREATE EXTENSION pg_flagsmith")
+        c.execute("CREATE EXTENSION pgsmith")
         # the install script's own search_path does not leak into the session
         assert c.execute("SHOW search_path").fetchone()[0] == "public, pg_temp"
         c.execute("SELECT flagsmith.load_context(%s::json)", (json.dumps(ctx),))
@@ -81,5 +81,5 @@ def test_drop_extension_needs_no_cascade_and_dump_keeps_configuration(dbs):
         assert c.execute("SELECT count(*) FROM flagsmith.snapshot").fetchone()[0] == 0
         c.execute("SELECT flagsmith.load_context(%s::json)", (json.dumps(ctx),))
         assert c.execute("SELECT enabled FROM flagsmith.flags('u', '{\"plan\": \"pro\"}')").fetchone() == (False,)
-        c.execute("DROP EXTENSION pg_flagsmith")          # no CASCADE needed
+        c.execute("DROP EXTENSION pgsmith")          # no CASCADE needed
         assert c.execute("SELECT to_regnamespace('flagsmith_c')").fetchone()[0] is None

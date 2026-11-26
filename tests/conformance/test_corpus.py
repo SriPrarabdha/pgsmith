@@ -1,5 +1,5 @@
 """engine-test-data conformance: every case, against the reference engine and
-against both pg_flagsmith tiers."""
+against both pgsmith tiers."""
 from __future__ import annotations
 
 import json
@@ -35,7 +35,7 @@ def test_reference_engine_agrees_with_corpus(path):
 
 @pytest.mark.parametrize("tier", ["interpreter", "compiled"])
 @pytest.mark.parametrize("path", CASES, ids=IDS)
-def test_pg_flagsmith(cur, path, tier):
+def test_pgsmith(cur, path, tier):
     reason = EXPECTED_FAIL[tier].get(path.name)
     if reason:
         pytest.xfail(reason)

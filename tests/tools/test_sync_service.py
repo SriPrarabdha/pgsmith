@@ -9,7 +9,7 @@ import types
 
 import pytest
 
-from tools.pgflagsmith.sync import MAX_WEBHOOK_BYTES, check_api_url, key_fingerprint, make_server, verify_signature
+from tools.pgsmith.sync import MAX_WEBHOOK_BYTES, check_api_url, key_fingerprint, make_server, verify_signature
 
 
 @pytest.fixture()

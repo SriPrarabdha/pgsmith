@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 64 64" role="img" aria-label="pgsmith">
+  <title>pgsmith</title>
+  <g transform="translate(0 0) scale(1.0)">
+    <defs>
+      <linearGradient id="flag" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#8B5CF6"/><stop offset="1" stop-color="#4F46E5"/>
+      </linearGradient>
+      <linearGradient id="anvil" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#64748B"/><stop offset="1" stop-color="#334155"/>
+      </linearGradient>
+    </defs>
+    <rect x="21" y="7" width="4.5" height="40" rx="2.25" fill="#94A3B8"/>
+    <path d="M25.5 9 C 33 5.5, 39 12.5, 47 9 C 51 7.3, 54 7.6, 56 8.4 L 56 29 C 54 28.2, 51 27.9, 47 29.6 C 39 33, 33 26, 25.5 29.5 Z" fill="url(#flag)"/>
+    <g fill="#FFFFFF" opacity=".92">
+      <rect x="31" y="14.2" width="17" height="3.2" rx="1.6"/>
+      <rect x="31" y="19.4" width="12" height="3.2" rx="1.6"/>
+    </g>
+    <path d="M6 46 H 50 C 50 49.5, 46.5 51, 42 51 H 37 L 39.5 57 H 44 V 60 H 16 V 57 H 20.5 L 23 51 H 16 C 10 51, 6 49, 6 46 Z" fill="url(#anvil)"/>
+    <path d="M50 46 C 55 46, 58.5 44.5, 60 42 C 58 47.5, 54.5 49.5, 50 49.6 Z" fill="#475569"/>
+  </g>
+</svg>

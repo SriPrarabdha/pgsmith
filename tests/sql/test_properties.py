@@ -201,7 +201,7 @@ def test_hostile_values_compile_into_literals(cur, env_key):
 def test_reader_role_cannot_read_tables(cur, env_key):
     load(cur, ctx_with(env_key, True))
     alias = cur.execute("SELECT alias FROM flagsmith.environment WHERE env_key = %s", (env_key,)).fetchone()[0]
-    role = "pgfs_app_" + uuid.uuid4().hex[:6]
+    role = "pgsmith_app_" + uuid.uuid4().hex[:6]
     cur.execute(f"CREATE ROLE {role} LOGIN PASSWORD 'x' IN ROLE flagsmith_reader")
     cur.execute(f"GRANT {role} TO CURRENT_USER")  # PG 16+: CREATEROLE alone does not allow SET ROLE
     try:

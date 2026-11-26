@@ -1,6 +1,6 @@
 """Security properties of the installed extension.
 
-  * no pg_flagsmith routine resolves a name through its caller's search_path
+  * no pgsmith routine resolves a name through its caller's search_path
     (SQL-standard bodies bind at creation; everything else pins search_path),
     checked in the catalog and by planting trojans that must never run;
   * SECURITY DEFINER routines pin search_path with pg_temp last;
@@ -100,7 +100,7 @@ def test_no_routine_resolves_names_through_the_callers_search_path(cur, env):
         if sig == "flagsmith._fx(anyelement)" and src.strip() == "SELECT $1":
             continue  # no names at all (polymorphic: cannot be SQL-standard)
         if sig == "flagsmith.sync_run()" and kind == "p":
-            # a committing procedure cannot carry SET; it may only call qualified pg_flagsmith routines
+            # a committing procedure cannot carry SET; it may only call qualified pgsmith routines
             body = re.sub(r"--[^\n]*", "", src)
             calls = re.findall(r"PERFORM\s+([\w.]+)\(\)", body)
             assert calls == ["flagsmith.sync_tick", "flagsmith._sync_await"], body
@@ -161,7 +161,7 @@ def test_security_definer_grants_are_exactly_the_intended_ones(cur, env):
     for role, name in cur.fetchall():
         got.setdefault(role, set()).add(name)
     assert got == EXPECTED_DEFINER_GRANTS
-    # no role (owner aside) holds any privilege on a pg_flagsmith table
+    # no role (owner aside) holds any privilege on a pgsmith table
     cur.execute("""
       SELECT c.oid::regclass::text, r.rolname FROM pg_class c
       CROSS JOIN LATERAL aclexplode(c.relacl) a JOIN pg_roles r ON r.oid = a.grantee
@@ -170,14 +170,14 @@ def test_security_definer_grants_are_exactly_the_intended_ones(cur, env):
 
 
 class Roles:
-    """Login-less test roles, one per pg_flagsmith role, usable with SET ROLE."""
+    """Login-less test roles, one per pgsmith role, usable with SET ROLE."""
 
     def __init__(self, cur):
         self.cur = cur
         self.names = {}
         sfx = uuid.uuid4().hex[:6]
         for base in ("reader", "tracker", "planner", "loader"):
-            r = f"pgfs_t_{base}_{sfx}"
+            r = f"pgsmith_t_{base}_{sfx}"
             cur.execute(f"CREATE ROLE {r} NOLOGIN IN ROLE flagsmith_{base}")
             cur.execute(f"GRANT {r} TO CURRENT_USER")  # PG 16+: CREATEROLE alone does not allow SET ROLE
             self.names[base] = r
@@ -218,10 +218,10 @@ def test_each_role_can_do_its_job_and_nothing_more(conn, env, roles):
     k, a, sid = env["key"], env["alias"], env["sid"]
     ctx = json.dumps(ctx_all_operators(k))
     with conn.cursor() as cur:
-        cur.execute("CREATE TABLE IF NOT EXISTS public.pgfs_sec_users (identifier text, traits jsonb)")
-        cur.execute("TRUNCATE public.pgfs_sec_users")
-        cur.execute("INSERT INTO public.pgfs_sec_users SELECT 'u' || g, '{}' FROM generate_series(1, 50) g")
-        cur.execute(f"GRANT SELECT ON public.pgfs_sec_users TO {r['planner']}")
+        cur.execute("CREATE TABLE IF NOT EXISTS public.pgsmith_sec_users (identifier text, traits jsonb)")
+        cur.execute("TRUNCATE public.pgsmith_sec_users")
+        cur.execute("INSERT INTO public.pgsmith_sec_users SELECT 'u' || g, '{}' FROM generate_series(1, 50) g")
+        cur.execute(f"GRANT SELECT ON public.pgsmith_sec_users TO {r['planner']}")
         cur.execute("BEGIN")
         try:
             P1, PC, PCK = (k,), (ctx,), (ctx, k)
@@ -237,7 +237,7 @@ def test_each_role_can_do_its_job_and_nothing_more(conn, env, roles):
                 ("tracker", "SELECT flagsmith.track_exposure('mv', 'u1', 'a', env => %s)", P1, True),
                 ("tracker", "SELECT flagsmith.track_event('click', 'u1', env => %s)", P1, True),
                 ("planner", "SELECT * FROM flagsmith.live_context(%s)", P1, True),
-                ("planner", f"SELECT * FROM flagsmith.plan(%s, {sid}, 'public.pgfs_sec_users')", P1, True),
+                ("planner", f"SELECT * FROM flagsmith.plan(%s, {sid}, 'public.pgsmith_sec_users')", P1, True),
                 ("planner", "SELECT flagsmith.load_candidate(%s::json, %s)", PCK, True),
                 ("loader", "SELECT flagsmith.load_context(%s::json)", PC, True),
                 ("loader", "SELECT * FROM flagsmith.sync_tick()", None, True),
@@ -271,11 +271,11 @@ def test_each_role_can_do_its_job_and_nothing_more(conn, env, roles):
             assert not failures, failures
         finally:
             cur.execute("ROLLBACK")
-            cur.execute("DROP TABLE public.pgfs_sec_users")
+            cur.execute("DROP TABLE public.pgsmith_sec_users")
 
 
 # ---------------------------------------------------------------------------
-# trojans: lookalikes of every built-in function and operator pg_flagsmith uses,
+# trojans: lookalikes of every built-in function and operator pgsmith uses,
 # placed before pg_catalog in search_path, that raise if they are ever called
 # ---------------------------------------------------------------------------
 
@@ -284,9 +284,9 @@ OPERATORS = ["=", "<>", "<", ">", "<=", ">=", "||", "->", "->>", "#>", "#>>", "~
 
 
 def _plant_trojans(cur) -> int:
-    script = (ROOT / "extension" / "dist" / "pg_flagsmith--0.1.0.sql").read_text()
+    script = (ROOT / "extension" / "dist" / "pgsmith--0.1.0.sql").read_text()
     used = set(m.lower() for m in re.findall(r"\b([A-Za-z_][A-Za-z0-9_]*)\s*\(", script))
-    cur.execute("CREATE SCHEMA pgfs_trojan")
+    cur.execute("CREATE SCHEMA pgsmith_trojan")
     cur.execute("""
       SELECT p.proname, pg_get_function_identity_arguments(p.oid), pg_get_function_result(p.oid), p.proretset
       FROM pg_proc p
@@ -302,7 +302,7 @@ def _plant_trojans(cur) -> int:
     for name, args, result, retset in cur.fetchall():
         cur.execute("SAVEPOINT t")
         try:
-            cur.execute(psql.SQL("CREATE FUNCTION pgfs_trojan.{}({}) RETURNS {} LANGUAGE plpgsql AS {}").format(
+            cur.execute(psql.SQL("CREATE FUNCTION pgsmith_trojan.{}({}) RETURNS {} LANGUAGE plpgsql AS {}").format(
                 psql.Identifier(name), psql.SQL(args), psql.SQL(result),
                 psql.Literal(f"BEGIN RAISE EXCEPTION 'trojan function {name}'; END")))
             cur.execute("RELEASE SAVEPOINT t")
@@ -320,11 +320,11 @@ def _plant_trojans(cur) -> int:
     for i, (op, left, right, res) in enumerate(cur.fetchall()):
         cur.execute("SAVEPOINT t")
         try:
-            cur.execute(psql.SQL("CREATE FUNCTION pgfs_trojan.{}(l {}, r {}) RETURNS {} LANGUAGE plpgsql AS {}").format(
+            cur.execute(psql.SQL("CREATE FUNCTION pgsmith_trojan.{}(l {}, r {}) RETURNS {} LANGUAGE plpgsql AS {}").format(
                 psql.Identifier(f"op_{i}"), psql.SQL(left), psql.SQL(right), psql.SQL(res),
                 psql.Literal("BEGIN RAISE EXCEPTION 'trojan operator " + op.replace("%", "%%") + "'; END")))
-            cur.execute(f"CREATE OPERATOR pgfs_trojan.{op} (LEFTARG = {left}, RIGHTARG = {right}, "
-                        f"FUNCTION = pgfs_trojan.op_{i})")
+            cur.execute(f"CREATE OPERATOR pgsmith_trojan.{op} (LEFTARG = {left}, RIGHTARG = {right}, "
+                        f"FUNCTION = pgsmith_trojan.op_{i})")
             cur.execute("RELEASE SAVEPOINT t")
             n += 1
         except psycopg.Error:
@@ -351,17 +351,17 @@ def test_search_path_trojans_never_run(conn, roles):
             alias = dict(cur.execute("SELECT env_key, alias FROM flagsmith.environments()").fetchall())[key]
             planted = _plant_trojans(cur)
             assert planted > 300
-            cur.execute("CREATE TABLE pgfs_trojan.users AS SELECT 'u' || g AS identifier, '{}'::jsonb AS traits "
+            cur.execute("CREATE TABLE pgsmith_trojan.users AS SELECT 'u' || g AS identifier, '{}'::jsonb AS traits "
                         "FROM generate_series(1, 20) g")
-            cur.execute(f"GRANT USAGE ON SCHEMA pgfs_trojan TO {roles.names['reader']}, {roles.names['planner']}")
-            cur.execute(f"GRANT SELECT ON pgfs_trojan.users TO {roles.names['planner']}")
-            cur.execute("SET LOCAL search_path = pgfs_trojan, pg_catalog, public")
+            cur.execute(f"GRANT USAGE ON SCHEMA pgsmith_trojan TO {roles.names['reader']}, {roles.names['planner']}")
+            cur.execute(f"GRANT SELECT ON pgsmith_trojan.users TO {roles.names['planner']}")
+            cur.execute("SET LOCAL search_path = pgsmith_trojan, pg_catalog, public")
             # the planted operators do capture unqualified SQL here: the test is live
             cur.execute("SAVEPOINT s")
             with pytest.raises(psycopg.errors.RaiseException, match="trojan"):
                 cur.execute("SELECT 'a'::text = 'b'::text")
             cur.execute("ROLLBACK TO SAVEPOINT s")
-            # everything pg_flagsmith does, as the owner (the context changes, so this compiles anew)
+            # everything pgsmith does, as the owner (the context changes, so this compiles anew)
             ctx["features"]["f0"]["value"] = "reloaded"
             cur.execute("SELECT flagsmith.load_context(%s::json)", (json.dumps(ctx),))
             sid = cur.fetchone()[0]
@@ -374,8 +374,8 @@ def test_search_path_trojans_never_run(conn, roles):
             cand["features"]["f1"]["enabled"] = True
             cur.execute("SELECT flagsmith.load_candidate(%s::json, %s)", (json.dumps(cand), key))
             cand_sid = cur.fetchone()[0]
-            cur.execute("SELECT * FROM flagsmith.plan(%s, %s, 'pgfs_trojan.users')", (key, cand_sid))
-            cur.execute("SELECT * FROM flagsmith.cohort_overlap(%s, %s, 'pgfs_trojan.users')", (sid, cand_sid))
+            cur.execute("SELECT * FROM flagsmith.plan(%s, %s, 'pgsmith_trojan.users')", (key, cand_sid))
+            cur.execute("SELECT * FROM flagsmith.cohort_overlap(%s, %s, 'pgsmith_trojan.users')", (sid, cand_sid))
             cur.execute("SELECT flagsmith.track_exposure('mv', 'u1', 'a', env => %s)", (key,))
             cur.execute("SELECT flagsmith.track_variant('mv', 'u1', '{}', %s)", (key,))
             cur.execute("SELECT * FROM flagsmith.events_claim(%s, 100)", (key,))
@@ -398,7 +398,7 @@ def test_search_path_trojans_never_run(conn, roles):
                 cur.execute("SELECT flagsmith.value('f1', %s, %s::jsonb, %s)", (ident, t, key))
             cur.execute("RESET ROLE")
             cur.execute(f"SET LOCAL ROLE {roles.names['planner']}")
-            cur.execute("SELECT * FROM flagsmith.plan(%s, %s, 'pgfs_trojan.users')", (key, cand_sid))
+            cur.execute("SELECT * FROM flagsmith.plan(%s, %s, 'pgsmith_trojan.users')", (key, cand_sid))
         finally:
             cur.execute("ROLLBACK")
 
@@ -407,9 +407,9 @@ def test_search_path_trojans_never_run(conn, roles):
 # hostile configuration: names and values that look like SQL never become SQL
 # ---------------------------------------------------------------------------
 
-HOSTILE = ["'; DROP TABLE public.pgfs_canary; --", "$$", "$f$ $q$ $t$", "a\\b\\'c", "é\"q ",
+HOSTILE = ["'; DROP TABLE public.pgsmith_canary; --", "$$", "$f$ $q$ $t$", "a\\b\\'c", "é\"q ",
            "-- comment", "/* open", "*/", "'@@ENVKEY@@'", "@@ENVKEY@@", "%s %L %I %%", "line\nbreak",
-           "x" * 200, "E'\\x41'", "); END; DROP TABLE public.pgfs_canary; BEGIN ATOMIC SELECT (", "\t"]
+           "x" * 200, "E'\\x41'", "); END; DROP TABLE public.pgsmith_canary; BEGIN ATOMIC SELECT (", "\t"]
 
 
 def hostile_context() -> dict:
@@ -434,7 +434,7 @@ def hostile_context() -> dict:
 def test_hostile_configuration_is_data_not_code(conn):
     ctx = hostile_context()
     with conn.cursor() as cur:
-        cur.execute("CREATE TABLE IF NOT EXISTS public.pgfs_canary (x int)")
+        cur.execute("CREATE TABLE IF NOT EXISTS public.pgsmith_canary (x int)")
         cur.execute("""SELECT count(*) FROM pg_proc WHERE pronamespace NOT IN
                        ('pg_catalog'::regnamespace, 'information_schema'::regnamespace)""")
         procs_before = cur.fetchone()[0]
@@ -451,17 +451,17 @@ def test_hostile_configuration_is_data_not_code(conn):
                     assert not d, (ident, compiled, d[:5])
             # the compiled tier really was used
             cur.execute("""SELECT bool_or(compiled) FROM flagsmith.snapshot s
-                           WHERE s.env_key = '__pg_flagsmith_test__' AND s.ctx_env_key = %s""",
+                           WHERE s.env_key = '__pgsmith_test__' AND s.ctx_env_key = %s""",
                         (ctx["environment"]["key"],))
             assert cur.fetchone()[0] is True
-            cur.execute("SELECT to_regclass('public.pgfs_canary') IS NOT NULL")
+            cur.execute("SELECT to_regclass('public.pgsmith_canary') IS NOT NULL")
             assert cur.fetchone()[0]
             cur.execute("""SELECT count(*) FROM pg_proc WHERE pronamespace NOT IN
                            ('pg_catalog'::regnamespace, 'information_schema'::regnamespace, 'flagsmith_c'::regnamespace)""")
             assert cur.fetchone()[0] <= procs_before
         finally:
             cur.execute("SELECT flagsmith.drop_test_snapshots()")
-            cur.execute("DROP TABLE IF EXISTS public.pgfs_canary")
+            cur.execute("DROP TABLE IF EXISTS public.pgsmith_canary")
 
 
 def test_pinned_routines_run_inside_parallel_workers(conn, env):

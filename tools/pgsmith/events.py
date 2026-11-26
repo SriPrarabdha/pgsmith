@@ -21,7 +21,7 @@ import requests
 
 from .sync import check_api_url, fetch_document, key_fingerprint
 
-log = logging.getLogger("pg_flagsmith.events")
+log = logging.getLogger("pgsmith.events")
 
 RETRIED = {408, 429, 500, 502, 503, 504}
 ATTEMPTS = 3
@@ -71,7 +71,7 @@ class Sender:
                 r = self.session.post(self.events_url, data=payload.encode(), timeout=TIMEOUT, headers={
                     "Content-Type": "application/json; charset=utf-8",
                     "X-Environment-Key": server_key,
-                    "Flagsmith-SDK-User-Agent": "pg-flagsmith-events"})
+                    "Flagsmith-SDK-User-Agent": "pgsmith-events"})
                 status = r.status_code
             except (requests.ConnectionError, requests.Timeout) as e:
                 log.warning("events: attempt %d failed: %s", attempt, e)
