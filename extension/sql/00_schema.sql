@@ -83,6 +83,7 @@ CREATE TABLE flagsmith.environment (
   keep_snapshots     int NOT NULL DEFAULT 50 CHECK (keep_snapshots >= 2),
   gc_grace           interval NOT NULL DEFAULT '10 minutes',
   max_compiled_bytes int NOT NULL DEFAULT 4000000,
+  last_checked_at    timestamptz,                   -- last sync that found the configuration unchanged
   created_at         timestamptz NOT NULL DEFAULT now()
 );
 CREATE UNIQUE INDEX environment_one_default ON flagsmith.environment ((true)) WHERE is_default;
@@ -264,6 +265,7 @@ CREATE TABLE flagsmith.load_log (
   outcome     text NOT NULL,          -- 'loaded' | 'unchanged' | 'reused' | 'pinned'
   detail      text
 );
+CREATE INDEX load_log_env ON flagsmith.load_log (env_key, load_id);
 
 -- Deny by default: row level security on, no policies for application roles.
 ALTER TABLE flagsmith.environment      ENABLE ROW LEVEL SECURITY;

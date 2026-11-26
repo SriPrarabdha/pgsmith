@@ -13,10 +13,8 @@ from ..sync import dumps
 def live_context(conn: psycopg.Connection, env: str) -> dict:
     """The current snapshot of an environment: context, identity overrides, ids."""
     row = conn.execute(
-        """SELECT e.env_key, e.name, e.alias, s.snapshot_id, s.context::text, s.identity_overrides::text, s.source_rev
-           FROM flagsmith.environment e JOIN flagsmith.snapshot s ON s.snapshot_id = e.current_snapshot
-           WHERE e.env_key = %(e)s OR e.alias = %(e)s OR lower(e.name) = lower(%(e)s)
-           ORDER BY (e.env_key = %(e)s) DESC LIMIT 1""", {"e": env}).fetchone()
+        """SELECT env_key, name, alias, snapshot_id, context::text, identity_overrides::text, source_rev
+           FROM flagsmith.live_context(%s)""", (env,)).fetchone()
     if not row:
         raise SystemExit(f"flagshift: environment {env!r} has no live snapshot in this database (run pg-flagsmith sync)")
     return {"env_key": row[0], "name": row[1], "alias": row[2], "snapshot_id": row[3],
@@ -149,6 +147,5 @@ def apply_patch(ctx: dict, ops: list[dict]) -> dict:
 
 def load_candidate(conn: psycopg.Connection, ctx: dict, env_key: str, identity_overrides: dict | None) -> int:
     return conn.execute(
-        """SELECT flagsmith.load_context(%s::json, env_key => %s, source => 'flagshift', kind => 'candidate',
-                                         identity_overrides => %s::json, compile => true)""",
+        "SELECT flagsmith.load_candidate(%s::json, %s, %s::json)",
         (dumps(ctx), env_key, dumps(identity_overrides) if identity_overrides else None)).fetchone()[0]

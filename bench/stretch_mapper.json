@@ -1,0 +1,38 @@
+[
+  {
+    "document": "local Flagsmith Production (5 features, 5 segments)",
+    "bytes": 7837,
+    "python_map_ms": 0.09317463263869286,
+    "sql_map_ms": 4.609851166605949,
+    "unchanged_poll_hash_ms": 0.07927929982542992,
+    "pusher_load_ms": 11.178637389093637,
+    "in_db_load_ms": 15.22970711812377
+  },
+  {
+    "document": "Edge Proxy profile (50 features, 15 segments, 750 overrides)",
+    "bytes": 243894,
+    "python_map_ms": 1.8945741467177868,
+    "sql_map_ms": 45.90821173042059,
+    "unchanged_poll_hash_ms": 0.2939426340162754,
+    "pusher_load_ms": 101.97140602394938,
+    "in_db_load_ms": 147.6402268745005
+  },
+  {
+    "document": "profile + 10,000 identity overrides",
+    "bytes": 6194384,
+    "python_map_ms": 253.44315310940146,
+    "sql_map_ms": 946.4916889555752,
+    "unchanged_poll_hash_ms": 5.113428924232721,
+    "pusher_load_ms": 2530.225981026888,
+    "in_db_load_ms": 3602.400904055685
+  },
+  {
+    "document": "profile + 100,000 identity overrides",
+    "bytes": 60149454,
+    "python_map_ms": 1720.7133588381112,
+    "sql_map_ms": 9328.12920305878,
+    "unchanged_poll_hash_ms": 77.79902406036854,
+    "pusher_load_ms": 28422.86016140133,
+    "in_db_load_ms": 35151.0353772901
+  }
+]

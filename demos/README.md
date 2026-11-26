@@ -62,3 +62,31 @@ psql "$PGFS_DSN" -c "SELECT * FROM shop.experiment_results"
    report lift, a 95% interval and the chance to win per metric; the latency guardrail's interval crosses zero, and
    the report says so. The traffic is simulated, and the read-out says that too.
 6. **Roll out the winner by changing the flag** (e.g. 100% `boosted`). The SQL never changes.
+
+**Exposures recorded in SQL.** `simulate.py --via-queue` records the same exposures and events with
+`flagsmith.track_exposure` / `flagsmith.track_event` instead of the SDK. The database delivers them to Flagsmith in
+batches: run `SELECT * FROM flagsmith.events_tick()`, or schedule it with `SELECT flagsmith.schedule_events()`, once the
+in-database sync below is set up. You can also run `pg-flagsmith events --once` outside the database.
+`SELECT * FROM flagsmith.event_status()` shows queued, delivered and deduplicated counts.
+
+## Demo 3: Postgres syncs itself (Supabase)
+
+No sync service: the database fetches the environment document, maps it with the SQL port of the SDK's mapper and
+loads it, on a pg_cron schedule.
+
+```sql
+create extension if not exists http with schema extensions;
+create extension if not exists pg_cron;
+select vault.create_secret('<PROD_SERVER_KEY>', 'flagsmith_production');
+select flagsmith.add_remote_source('production', 'http://flagsmith:8000/api/v1/', 'flagsmith_production',
+                                   allow_insecure_http => true);   -- local stack only; use https in production
+select * from flagsmith.sync_tick();                  -- loaded (snapshot N)
+select * from flagsmith.sync_tick();                  -- unchanged (same document: not even parsed)
+select flagsmith.schedule_sync('10 seconds');          -- pg_cron: CALL flagsmith.sync_run()
+```
+
+1. Change a flag in the Flagsmith UI; within one schedule interval, `flagsmith.flags()` serves it
+   (`select * from flagsmith.sync_status()` shows the load).
+2. Stop Flagsmith (`docker compose stop flagsmith`): `sync_status()` reports the error, `health()` goes `stale` after
+   five minutes, and every query keeps using the last configuration.
+3. `select flagsmith.unschedule_sync();` when done.

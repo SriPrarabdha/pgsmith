@@ -2,7 +2,8 @@
 -- (Version.compare, which ignores build metadata).
 
 CREATE FUNCTION flagsmith.semver_parse(s text) RETURNS flagsmith.semver
-LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE AS $$
+LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE
+SET search_path = pg_catalog, flagsmith, pg_temp AS $$
 DECLARE m text[];
 BEGIN
   m := regexp_match(s,
@@ -17,7 +18,8 @@ END $$;
 
 -- -1, 0 or 1. Build metadata does not take part.
 CREATE FUNCTION flagsmith.semver_cmp(a flagsmith.semver, b flagsmith.semver) RETURNS int
-LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE AS $$
+LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE
+SET search_path = pg_catalog, flagsmith, pg_temp AS $$
 DECLARE pa text[]; pb text[]; x text; y text; i int; xn boolean; yn boolean; xs text; ys text;
 BEGIN
   IF a.major <> b.major THEN RETURN sign(a.major - b.major); END IF;

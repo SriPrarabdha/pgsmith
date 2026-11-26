@@ -57,7 +57,7 @@ def apply_candidate(conn, a, result: dict) -> None:
         sys.exit("flagshift apply: pass --api and --token (or FLAGSMITH_API_URL / FLAGSMITH_TOKEN)")
     fs = FlagsmithAdmin(a.api, token=a.token)
     live = cand_mod.live_context(conn, a.env)
-    cand_ctx = json.loads(conn.execute("SELECT context::text FROM flagsmith.snapshot WHERE snapshot_id = %s",
+    cand_ctx = json.loads(conn.execute("SELECT flagsmith.snapshot_context(%s)::text",
                                        (result["candidate_snapshot"],)).fetchone()[0])
     ops, notes = _ops(live["context"], cand_ctx)
     for n in notes:

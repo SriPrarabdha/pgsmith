@@ -20,95 +20,95 @@
     }
   },
   "load": {
-    "wall_ms": 80.3,
-    "normalise_ms": 37.74,
+    "wall_ms": 117.1,
+    "normalise_ms": 38.88,
     "compiled": true,
-    "compile_ms": 35.52,
+    "compile_ms": 69.96,
     "generated_bytes": 362329
   },
   "point_lookup": {
     "interpreter, all 50 flags": {
-      "p50_us": 1416.2,
-      "p99_us": 1562.5,
-      "mean_us": 1415.6,
+      "p50_us": 1418.4,
+      "p99_us": 1519.4,
+      "mean_us": 1411.2,
       "n": 1000
     },
     "compiled flags(), all 50 flags": {
-      "p50_us": 508.3,
-      "p99_us": 658.4,
-      "mean_us": 514.1,
+      "p50_us": 471.5,
+      "p99_us": 596.6,
+      "mean_us": 477.0,
       "n": 2000
     },
     "compiled flag(), one flag": {
-      "p50_us": 298.6,
-      "p99_us": 456.7,
-      "mean_us": 300.0,
+      "p50_us": 277.3,
+      "p99_us": 299.9,
+      "mean_us": 276.3,
       "n": 2000
     },
     "variant() helper, one MV flag": {
-      "p50_us": 370.8,
-      "p99_us": 425.9,
-      "mean_us": 372.7,
+      "p50_us": 333.0,
+      "p99_us": 368.9,
+      "mean_us": 335.6,
       "n": 2000
     },
     "baseline: SELECT 1 round trip": {
-      "p50_us": 23.6,
-      "p99_us": 27.2,
-      "mean_us": 23.7,
+      "p50_us": 22.2,
+      "p99_us": 25.0,
+      "mean_us": 22.3,
       "n": 2000
     }
   },
   "batch": {
     "all 50 flags, serial": {
-      "seconds": 47.9,
-      "planning_ms": 9.0,
-      "identities_per_s": 20878,
-      "flag_evaluations_per_s": 1043890,
+      "seconds": 47.31,
+      "planning_ms": 6.682,
+      "identities_per_s": 21138,
+      "flag_evaluations_per_s": 1056908,
       "workers": 0
     },
     "all 50 flags, parallel": {
       "seconds": 10.53,
-      "planning_ms": 8.751,
-      "identities_per_s": 94926,
-      "flag_evaluations_per_s": 4746275,
+      "planning_ms": 6.912,
+      "identities_per_s": 95004,
+      "flag_evaluations_per_s": 4750193,
       "workers": 4
     },
     "one flag via flags() WHERE feature, parallel": {
-      "seconds": 10.13,
-      "planning_ms": 8.769,
-      "identities_per_s": 98747,
-      "flag_evaluations_per_s": 98747,
+      "seconds": 9.75,
+      "planning_ms": 7.482,
+      "identities_per_s": 102523,
+      "flag_evaluations_per_s": 102523,
       "workers": 4
     },
     "one flag via flag(), serial": {
-      "seconds": 27.29,
-      "planning_ms": 6.792,
-      "identities_per_s": 36649,
-      "flag_evaluations_per_s": 36649,
+      "seconds": 27.14,
+      "planning_ms": 5.822,
+      "identities_per_s": 36842,
+      "flag_evaluations_per_s": 36842,
       "workers": 0
     },
     "interpreter, all 50 flags, serial (20k users)": {
-      "seconds": 22.02,
-      "identities_per_s": 908,
-      "flag_evaluations_per_s": 45419
+      "seconds": 22.77,
+      "identities_per_s": 878,
+      "flag_evaluations_per_s": 43910
     },
     "all 50 flags, parallel_workers = 8": {
-      "seconds": 5.9,
-      "planning_ms": 9.802,
-      "identities_per_s": 169570,
-      "flag_evaluations_per_s": 8478520,
+      "seconds": 5.95,
+      "planning_ms": 7.228,
+      "identities_per_s": 168136,
+      "flag_evaluations_per_s": 8406799,
       "workers": 8
     }
   },
   "jit": {
     "off": {
-      "seconds_200k_users": 9.47
+      "seconds_200k_users": 9.52
     },
     "on (Postgres defaults)": {
-      "seconds_200k_users": 11.17
+      "seconds_200k_users": 11.0
     },
     "on (forced: jit_above_cost = 0)": {
-      "seconds_200k_users": 13.13
+      "seconds_200k_users": 13.2
     }
   },
   "planner_checks": {
@@ -119,15 +119,15 @@
   },
   "hashed_in_lists": {
     "IN list of 10": {
-      "us_per_identity": 27.26
+      "us_per_identity": 27.25
     },
     "IN list of 10,000": {
-      "us_per_identity": 27.22
+      "us_per_identity": 27.36
     }
   },
   "python_engine": {
-    "us_per_identity_all_flags": 203.3,
-    "identities_per_s": 4919
+    "us_per_identity_all_flags": 204.2,
+    "identities_per_s": 4896
   },
   "parity_spot_check": {
     "identities": 500,

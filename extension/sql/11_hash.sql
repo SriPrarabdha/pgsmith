@@ -8,16 +8,18 @@
 
 -- r = md5 digest (hex) mod 9999
 CREATE FUNCTION flagsmith.md5_mod9999(h text) RETURNS int
-LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE AS $$
+LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE BEGIN ATOMIC
   SELECT (((('x' || substr(h, 1, 8))::bit(32)::bigint % 9999) * 7291
          + (('x' || substr(h, 9, 8))::bit(32)::bigint % 9999) * 1897
          + (('x' || substr(h, 17, 8))::bit(32)::bigint % 9999) * 6835
          +  ('x' || substr(h, 25, 8))::bit(32)::bigint) % 9999)::int
-$$;
+;
+END;
 
 -- The engine's hashed percentage for an id list, rehash included.
 CREATE FUNCTION flagsmith.hash_pct(ids text[]) RETURNS float8
-LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE AS $$
+LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE
+SET search_path = pg_catalog, flagsmith, pg_temp AS $$
 DECLARE
   rep text[] := ids;
   r   int;
@@ -32,7 +34,8 @@ END $$;
 
 -- Two-id fast path (every split and variant hashes exactly two ids).
 CREATE FUNCTION flagsmith.hash_pct(a text, b text) RETURNS float8
-LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE AS $$
+LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE
+SET search_path = pg_catalog, flagsmith, pg_temp AS $$
 DECLARE
   h text := md5(convert_to(a || ',' || b, 'UTF8'));
   r int;

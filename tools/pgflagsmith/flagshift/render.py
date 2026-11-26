@@ -11,6 +11,16 @@ def _v(x) -> str:
     return json.dumps(x, ensure_ascii=False) if not isinstance(x, str) else json.dumps(x, ensure_ascii=False)
 
 
+def _md(x) -> str:
+    """Text from the configuration, made inert inside a Markdown PR comment:
+    no table breaks, no HTML, no @-mentions, no code-span escapes."""
+    s = str(x)
+    for a, b in (("\\", "\\\\"), ("|", "\\|"), ("`", "'"), ("<", "&lt;"), (">", "&gt;"),
+                 ("@", "@\u200b"), ("\r", " "), ("\n", " ")):
+        s = s.replace(a, b)
+    return s
+
+
 def _onoff(x) -> str:
     return "on" if x else "off"
 
@@ -79,8 +89,8 @@ def render_markdown(res: dict) -> str:
     changed = {f: sum(r["users"] for r in rs if r["changed"]) for f, rs in by.items()}
     pop = max(total.values()) if total else 0
     n = sum(1 for f in by if changed[f])
-    out = [f"### FlagShift plan: `{res['source']}` → `{res['environment']}`", "",
-           f"Population `{res['population']}`: **{pop:,}** identities. "
+    out = [f"### FlagShift plan: `{_md(res['source'])}` → `{_md(res['environment'])}`", "",
+           f"Population `{_md(res['population'])}`: **{pop:,}** identities. "
            f"**{n}** feature(s) change, **{len(by) - n}** unchanged. "
            f"Evaluated inside Postgres with pg_flagsmith in {res['seconds']}s "
            f"(live snapshot {res['live_snapshot']}, candidate {res['candidate_snapshot']}).", ""]
@@ -90,16 +100,17 @@ def render_markdown(res: dict) -> str:
             if not changed[f]:
                 continue
             for i, (users, what, reason, _) in enumerate(_transitions(by[f])[:4]):
-                out.append(f"| {'`' + f + '`' if i == 0 else ''} | {users:,} | {what} | {reason} |")
+                out.append(f"| {'`' + _md(f) + '`' if i == 0 else ''} | {users:,} | {_md(what)} | {_md(reason)} |")
         out.append("")
     for f, o in res.get("overlap", {}).items():
         if o["pct"] >= 99.95:
             continue
-        out.append(f"> ⚠️ `{f}`: only **{o['pct']:.1f}%** of {res['source']}'s targeted users are targeted the "
-                   f"same way in {res['environment']} (bucketing hashes environment-specific keys).")
+        out.append(f"> ⚠️ `{_md(f)}`: only **{o['pct']:.1f}%** of {_md(res['source'])}'s targeted users are targeted "
+                   f"the same way in {_md(res['environment'])} (bucketing hashes environment-specific keys).")
     for w in res.get("warnings", []):
-        out.append(f"> ⚠️ {w}")
+        out.append(f"> ⚠️ {_md(w)}")
     unchanged = [f for f in sorted(by) if not changed[f]]
     if unchanged:
-        out += ["", "<details><summary>Unchanged</summary>", "", ", ".join(f"`{f}`" for f in unchanged), "</details>"]
+        out += ["", "<details><summary>Unchanged</summary>", "", ", ".join(f"`{_md(f)}`" for f in unchanged),
+                "</details>"]
     return "\n".join(out)

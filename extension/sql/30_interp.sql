@@ -6,7 +6,8 @@
 
 -- Comparison operators, by the context value's type (Python's casting rules).
 CREATE FUNCTION flagsmith._cmp_eval(op text, v flagsmith.ctxval, c flagsmith.condition) RETURNS boolean
-LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE AS $$
+LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE
+SET search_path = pg_catalog, flagsmith, pg_temp AS $$
 DECLARE cmp int; tv flagsmith.semver;
 BEGIN
   CASE v.k
@@ -57,7 +58,8 @@ END $$;
 -- One condition against an already resolved context value.
 CREATE FUNCTION flagsmith._cond_eval(c flagsmith.condition, v flagsmith.ctxval, segment_key text)
 RETURNS boolean
-LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE AS $$
+LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE
+SET search_path = pg_catalog, flagsmith, pg_temp AS $$
 DECLARE op text := c.operator; x float8; m float8;
 BEGIN
   IF c.status <> 'ok' THEN RETURN false; END IF;
@@ -96,7 +98,8 @@ END $$;
 CREATE FUNCTION flagsmith._ctx_value(c flagsmith.condition, has_identity boolean, identifier text,
                                      ikey text, traits jsonb)
 RETURNS flagsmith.ctxval
-LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE AS $$
+LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE
+SET search_path = pg_catalog, flagsmith, pg_temp AS $$
 DECLARE tv jsonb;
 BEGIN
   IF c.prop_kind = 'split_ik' THEN
@@ -129,7 +132,8 @@ END $$;
 CREATE FUNCTION flagsmith._flag_result(sid bigint, fcid int, name text, enabled boolean, val jsonb,
   fkey text, nvar int, meta jsonb, reason text, ikey text)
 RETURNS flagsmith.flag_result
-LANGUAGE plpgsql STABLE PARALLEL SAFE AS $$
+LANGUAGE plpgsql STABLE PARALLEL SAFE
+SET search_path = pg_catalog, flagsmith, pg_temp AS $$
 DECLARE p float8; vr record;
 BEGIN
   IF ikey IS NOT NULL AND nvar > 0 THEN
@@ -173,7 +177,7 @@ DECLARE
   fc_meta jsonb[]; fc_nvar int[]; fc_real int[]; fc_fb text[]; fc_seg int[]; fc_segpos int[];
   fnames text[];
   -- identity overrides
-  io_v flagsmith.ctxval; io_key text; io_matched int[] := '{}'; io_seg int;
+  io_v flagsmith.ctxval; io_key text; io_matched int[] := '{}'; io_seg int; io_ovf int; io_ovn int;
   -- machine
   st_t int[] := '{}'; st_a int[] := '{}'; st_b int[] := '{}'; st_c int[] := '{}';
   st_d int[] := '{}'; st_e int[] := '{}';
@@ -201,7 +205,7 @@ BEGIN
   IF has_identity THEN
     ikey := coalesce(nullif(identity_key, ''), sn.ctx_env_key || '_' || coalesce(identifier, 'None'));
     IF sn.n_identity_overrides > 0 THEN
-      SELECT g.seg_ord INTO io_seg FROM flagsmith.segment g
+      SELECT g.seg_ord, g.ov_first, g.ov_count INTO io_seg, io_ovf, io_ovn FROM flagsmith.segment g
       WHERE g.snapshot_id = sid AND g.source = 'identity_override' AND g.io_identifier = identifier;
     END IF;
   END IF;
@@ -213,10 +217,13 @@ BEGIN
          array_agg(g.ov_count ORDER BY g.seg_ord), array_agg(g.seg_ord ORDER BY g.seg_ord),
          array_agg(g.source ORDER BY g.seg_ord)
   INTO sg_key, sg_name, sg_meta, sg_rule, sg_io, sg_ovf, sg_ovn, sg_ord, sg_src
-  FROM flagsmith.segment g
-  WHERE g.snapshot_id = sid
-    AND (g.seg_ord <= sn.n_ctx_segments OR g.seg_ord = io_seg)
-    AND (NOT env_mode OR g.identity_free);
+  FROM (SELECT * FROM flagsmith.segment g1
+        WHERE g1.snapshot_id = sid AND g1.seg_ord BETWEEN 1 AND sn.n_ctx_segments
+        UNION ALL
+        -- the identity's own override segment (an index probe, however many there are)
+        SELECT * FROM flagsmith.segment g2
+        WHERE g2.snapshot_id = sid AND g2.seg_ord = io_seg) g
+  WHERE NOT env_mode OR g.identity_free;
   nseg := coalesce(cardinality(sg_key), 0);
 
   SELECT array_agg(ru.rule_type ORDER BY ru.rule_id), array_agg(ru.first_cond ORDER BY ru.rule_id),
@@ -233,8 +240,11 @@ BEGIN
          array_agg(x.n_variants ORDER BY x.fc_id), array_agg(x.fc_id ORDER BY x.fc_id),
          array_agg(x.fallback_reason ORDER BY x.fc_id), array_agg(x.seg_ord ORDER BY x.fc_id)
   INTO fc_name, fc_en, fc_val, fc_key, fc_prio, fc_meta, fc_nvar, fc_real, fc_fb, fc_seg
-  FROM flagsmith.feature_context x
-  WHERE x.snapshot_id = sid AND (x.fc_id <= sn.n_ctx_fcs OR x.seg_ord = io_seg);
+  FROM (SELECT * FROM flagsmith.feature_context x1
+        WHERE x1.snapshot_id = sid AND x1.fc_id BETWEEN 1 AND sn.n_ctx_fcs
+        UNION ALL
+        SELECT * FROM flagsmith.feature_context x2
+        WHERE x2.snapshot_id = sid AND x2.fc_id BETWEEN io_ovf AND io_ovf + io_ovn - 1) x;
   nfc := coalesce(cardinality(fc_name), 0);
   nfeat := sn.n_features;
   fnames := coalesce(fc_name[1:nfeat], '{}');

@@ -6,45 +6,45 @@ Machine: AMD Ryzen 9 9950X3D 16-Core Processor, 32 cores; PostgreSQL 17.12 (Debi
 
 ## Load
 
-Normalise 37.74 ms, compile 35.52 ms (362,329 bytes of generated SQL); whole load_context() call 80.3 ms.
+Normalise 38.88 ms, compile 69.96 ms (362,329 bytes of generated SQL); whole load_context() call 117.1 ms.
 
 ## Point lookups (client round trip on localhost, prepared statements)
 
 | Call | p50 | p99 | mean |
 |---|---:|---:|---:|
-| interpreter, all 50 flags | 1416.2 µs | 1562.5 µs | 1415.6 µs |
-| compiled flags(), all 50 flags | 508.3 µs | 658.4 µs | 514.1 µs |
-| compiled flag(), one flag | 298.6 µs | 456.7 µs | 300.0 µs |
-| variant() helper, one MV flag | 370.8 µs | 425.9 µs | 372.7 µs |
-| baseline: SELECT 1 round trip | 23.6 µs | 27.2 µs | 23.7 µs |
+| interpreter, all 50 flags | 1418.4 µs | 1519.4 µs | 1411.2 µs |
+| compiled flags(), all 50 flags | 471.5 µs | 596.6 µs | 477.0 µs |
+| compiled flag(), one flag | 277.3 µs | 299.9 µs | 276.3 µs |
+| variant() helper, one MV flag | 333.0 µs | 368.9 µs | 335.6 µs |
+| baseline: SELECT 1 round trip | 22.2 µs | 25.0 µs | 22.3 µs |
 
 ## Batch throughput (1,000,000 users, server time)
 
 | Query | Workers | Time | Identities/s | Flag evaluations/s | Planning |
 |---|---:|---:|---:|---:|---:|
-| all 50 flags, serial | 0 | 47.9 s | 20,878 | 1,043,890 | 9.0 ms |
-| all 50 flags, parallel | 4 | 10.53 s | 94,926 | 4,746,275 | 8.751 ms |
-| one flag via flags() WHERE feature, parallel | 4 | 10.13 s | 98,747 | 98,747 | 8.769 ms |
-| one flag via flag(), serial | 0 | 27.29 s | 36,649 | 36,649 | 6.792 ms |
-| interpreter, all 50 flags, serial (20k users) | 0 | 22.02 s | 908 | 45,419 |  ms |
-| all 50 flags, parallel_workers = 8 | 8 | 5.9 s | 169,570 | 8,478,520 | 9.802 ms |
+| all 50 flags, serial | 0 | 47.31 s | 21,138 | 1,056,908 | 6.682 ms |
+| all 50 flags, parallel | 4 | 10.53 s | 95,004 | 4,750,193 | 6.912 ms |
+| one flag via flags() WHERE feature, parallel | 4 | 9.75 s | 102,523 | 102,523 | 7.482 ms |
+| one flag via flag(), serial | 0 | 27.14 s | 36,842 | 36,842 | 5.822 ms |
+| interpreter, all 50 flags, serial (20k users) | 0 | 22.77 s | 878 | 43,910 |  ms |
+| all 50 flags, parallel_workers = 8 | 8 | 5.95 s | 168,136 | 8,406,799 | 7.228 ms |
 
 ## Baseline: the official Python engine (flagsmith-flag-engine 11.1.2, one core)
 
-203.3 µs per identity for all 50 flags (4,919 identities/s).
+204.2 µs per identity for all 50 flags (4,896 identities/s).
 
 ## JIT (200k users, all 50 flags, serial)
 
-- jit off: 9.47 s
-- jit on (Postgres defaults): 11.17 s
-- jit on (forced: jit_above_cost = 0): 13.13 s
+- jit off: 9.52 s
+- jit on (Postgres defaults): 11.0 s
+- jit on (forced: jit_above_cost = 0): 13.2 s
 
 Postgres's default `jit_above_cost` triggers on population scans, and compiling the generated expression trees costs about two seconds per query while saving nothing, so turn JIT off for sessions that evaluate flags over many rows (`SET jit = off`, or `ALTER ROLE ... SET jit = off`). All other numbers here are with jit = off; FlagShift's functions set it themselves.
 
 ## Constant IN lists are hashed (Postgres 14+)
 
-- IN list of 10: 27.26 µs per identity
-- IN list of 10,000: 27.22 µs per identity
+- IN list of 10: 27.25 µs per identity
+- IN list of 10,000: 27.36 µs per identity
 
 Point lookups pay executor start-up for the whole inlined plan on every execution (thousands of expression nodes on this profile, where every feature is overridden by every segment); the evaluation itself is a small part. flag() prunes to one feature and costs less.
 

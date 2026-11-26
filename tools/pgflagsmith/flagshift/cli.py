@@ -112,10 +112,8 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if a.cmd == "history":
             for r in conn.execute(
-                    """SELECT l.at, l.snapshot_id, l.outcome, l.source, l.source_rev FROM flagsmith.load_log l
-                       JOIN flagsmith.environment e USING (env_key)
-                       WHERE e.env_key = %(e)s OR e.alias = %(e)s OR lower(e.name) = lower(%(e)s)
-                       ORDER BY l.load_id DESC LIMIT 20""", {"e": a.env}).fetchall():
+                    "SELECT at, snapshot_id, outcome, source, source_rev FROM flagsmith.load_history(%s, 20)",
+                    (a.env,)).fetchall():
                 print(f"{r[0]:%Y-%m-%d %H:%M:%S}  snapshot {r[1]:>6}  {r[2]:<9} {r[3] or '':<9} {r[4] or ''}")
             return 0
 

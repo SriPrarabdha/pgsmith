@@ -15,6 +15,7 @@ from dataclasses import dataclass
 
 import psycopg
 from flagsmith import Flagsmith
+from psycopg import sql
 
 from .sync import fetch_document, load_document
 
@@ -66,15 +67,20 @@ def run(dsn: str, api_url: str, server_key: str, population_sql: str, sample: in
     with psycopg.connect(dsn, autocommit=True) as conn:
         sid, _ = load_document(conn, doc, source="parity")
         env_key = doc["api_key"]
-        alias = conn.execute("SELECT alias FROM flagsmith.environment WHERE env_key = %s", (env_key,)).fetchone()[0]
-        rows = conn.execute(f"SELECT identifier::text, traits::jsonb FROM ({population_sql}) p").fetchall()
+        alias = conn.execute("SELECT alias FROM flagsmith.environments() WHERE env_key = %s", (env_key,)).fetchone()[0]
+        # the population query is the operator's own SQL: run it read-only
+        with conn.transaction():
+            conn.execute("SET TRANSACTION READ ONLY")
+            rows = conn.execute(sql.SQL("SELECT identifier::text, traits::jsonb FROM ({}) p").format(
+                sql.SQL(population_sql))).fetchall()
         rng = random.Random(seed)
         if len(rows) > sample:
             rows = rng.sample(rows, sample)
         mismatches: list[dict] = []
         compared = 0
         q_interp = "SELECT feature, enabled, value, variant, reason FROM flagsmith.get_flags(%s, %s, snapshot_id => %s)"
-        q_comp = f"SELECT feature, enabled, value, variant, reason FROM flagsmith_c.flags_{alias}(%s, %s)"
+        q_comp = sql.SQL("SELECT feature, enabled, value, variant, reason FROM flagsmith_c.{}(%s, %s)").format(
+            sql.Identifier(f"flags_{alias}"))
         for identifier, traits in rows:
             traits = traits or {}
             want = _sdk_flags(client, features, identifier, traits)

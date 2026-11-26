@@ -8,6 +8,8 @@ track_event. A click model with position bias makes popular items more clickable
 so the sales-boosted ranking has a modest real advantage to find.
 
     python demos/search_ab/simulate.py --users 3000
+    python demos/search_ab/simulate.py --users 3000 --via-queue   # record in SQL (flagsmith.track_*),
+                                                                  # delivered by the database or pg-flagsmith events
 """
 from __future__ import annotations
 
@@ -20,6 +22,7 @@ import time
 import psycopg
 from flagsmith import Flagsmith
 from flagsmith.analytics import EventProcessorConfig
+from psycopg.types.json import Jsonb
 
 QUERIES = ["wireless headphones", "organic mug", "smart watch", "portable speaker", "leather backpack", "camera",
            "eco bottle", "retro lamp", "steel kettle", "mini drone", "pro keyboard", "solar charger", "cotton jacket",
@@ -40,12 +43,28 @@ def main() -> None:
     ap.add_argument("--events-url", default=os.environ.get("FLAGSMITH_EVENTS_URL", "http://localhost:8000/api/"))
     ap.add_argument("--server-key", default=os.environ.get("PROD_SERVER_KEY"))
     ap.add_argument("--api", default=os.environ.get("FLAGSMITH_API_URL"))
+    ap.add_argument("--via-queue", action="store_true",
+                    help="record exposures and events with flagsmith.track_exposure/track_event (the exposure "
+                         "queue) instead of the SDK")
     a = ap.parse_args()
     rng = random.Random(a.seed)
-    client = Flagsmith(environment_key=a.server_key, api_url=a.api, enable_events=True,
-                       event_processor_config=EventProcessorConfig(events_api_url=a.events_url,
-                                                                   flush_interval_seconds=2))
+    client = None if a.via_queue else Flagsmith(
+        environment_key=a.server_key, api_url=a.api, enable_events=True,
+        event_processor_config=EventProcessorConfig(events_api_url=a.events_url, flush_interval_seconds=2))
     with psycopg.connect(a.dsn, autocommit=True) as conn:
+        def exposure(ident, arm, meta):
+            if client:
+                client.track_exposure_event(feature_name="search_ranking", identifier=ident, value=arm, metadata=meta)
+            else:
+                conn.execute("SELECT flagsmith.track_exposure('search_ranking', %s, %s, metadata => %s)",
+                             (ident, arm, Jsonb(meta)))
+
+        def event(name, ident, value):
+            if client:
+                client.track_event(name, identifier=ident, value=value)
+            else:   # sent as text, as the SDK sends str(value)
+                conn.execute("SELECT flagsmith.track_event(%s, %s, %s)", (name, ident, str(value)))
+
         users = conn.execute("SELECT identifier, traits FROM app.users ORDER BY md5(identifier || %s) LIMIT %s",
                              (str(a.seed), a.users)).fetchall()
         exp_id = conn.execute(
@@ -67,32 +86,36 @@ def main() -> None:
                 arm = rows[0][1]
                 counts["searches"] += 1
                 if not exposed:
-                    client.track_exposure_event(feature_name="search_ranking", identifier=ident, value=arm,
-                                                metadata={"experiment_id": exp_id})
+                    exposure(ident, arm, {"experiment_id": exp_id})
                     conn.execute("INSERT INTO shop.events (identifier, event, arm, query) VALUES (%s, '$flag_exposure', %s, %s)",
                                  (ident, arm, q))
                     exposed = True
-                client.track_event("search_latency_ms", identifier=ident, value=round(latency_ms, 3))
+                event("search_latency_ms", ident, round(latency_ms, 3))
                 conn.execute("INSERT INTO shop.events (identifier, event, arm, value) VALUES (%s, 'search_latency_ms', %s, %s)",
                              (ident, arm, latency_ms))
                 # click model: position bias times item attractiveness, first click wins
                 for pos, (pid, _) in enumerate(rows[:10]):
                     if rng.random() < attractiveness(sales[pid]) / (pos + 1) ** 0.8:
                         counts["clicks"] += 1
-                        client.track_event("search_result_clicked", identifier=ident, value=pos + 1)
+                        event("search_result_clicked", ident, pos + 1)
                         conn.execute("INSERT INTO shop.events (identifier, event, arm, value, query) "
                                      "VALUES (%s, 'search_result_clicked', %s, %s, %s)", (ident, arm, pos + 1, q))
                         if rng.random() < 0.15 + 0.5 * attractiveness(sales[pid]):
                             counts["carts"] += 1
-                            client.track_event("add_to_cart", identifier=ident, value=pid)
+                            event("add_to_cart", ident, pid)
                             conn.execute("INSERT INTO shop.events (identifier, event, arm, value) VALUES (%s, 'add_to_cart', %s, %s)",
                                          (ident, arm, pid))
                         break
             if (i + 1) % 500 == 0:
                 print(f"  {i + 1} users, {counts['searches']} searches, {counts['clicks']} clicks, "
                       f"{counts['carts']} add-to-carts ({time.perf_counter() - t0:.0f}s)", flush=True)
-        client.flush_events()
-        client.close()
+        if client:
+            client.flush_events()
+            client.close()
+        else:
+            queued = conn.execute("SELECT coalesce(sum(queued), 0) FROM flagsmith.event_status()").fetchone()[0]
+            print(f"{queued} events queued: delivered by flagsmith.events_tick() (schedule_events) or "
+                  "`pg-flagsmith events --once`")
     print(f"simulated {len(users)} users: {counts}  (SIMULATED TRAFFIC)")
 
 

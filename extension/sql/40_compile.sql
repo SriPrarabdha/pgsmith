@@ -36,7 +36,8 @@ $$;
 
 -- first variant whose [lo, hi) contains p, among positions off+1 .. off+cnt; 0 for none
 CREATE FUNCTION flagsmith._vpick(p float8, lo float8[], hi float8[], off int, cnt int) RETURNS int
-LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE AS $$
+LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE
+SET search_path = pg_catalog, flagsmith, pg_temp AS $$
 BEGIN
   FOR i IN off + 1 .. off + cnt LOOP
     IF lo[i] <= p AND p < hi[i] THEN RETURN i; END IF;
@@ -45,7 +46,8 @@ BEGIN
 END $$;
 
 CREATE FUNCTION flagsmith._mod_eval(v flagsmith.ctxval, d float8, r float8) RETURNS boolean
-LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE AS $$
+LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE
+SET search_path = pg_catalog, flagsmith, pg_temp AS $$
 DECLARE x float8; m float8;
 BEGIN
   IF v.k NOT IN ('i', 'f', 'b') OR d IS NULL OR r IS NULL THEN RETURN false; END IF;
@@ -56,7 +58,8 @@ BEGIN
 END $$;
 
 CREATE FUNCTION flagsmith._semver_cond(s text, op text, cv flagsmith.semver, ctxt text) RETURNS boolean
-LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE AS $$
+LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE
+SET search_path = pg_catalog, flagsmith, pg_temp AS $$
 DECLARE tv flagsmith.semver; cmp int;
 BEGIN
   tv := flagsmith.semver_parse(s);
@@ -72,7 +75,8 @@ END $$;
 -- The largest r in 0..9997 with r / 9998 * 100 <= thr in float8 (the reference's
 -- operation order), so a split compares the integer digest residue directly.
 CREATE FUNCTION flagsmith._split_rmax(thr float8) RETURNS int
-LANGUAGE plpgsql IMMUTABLE STRICT AS $$
+LANGUAGE plpgsql IMMUTABLE STRICT
+SET search_path = pg_catalog, flagsmith, pg_temp AS $$
 DECLARE r int;
 BEGIN
   r := least(9997, greatest(-1, floor(thr * 9998 / 100)::int + 2));
@@ -82,14 +86,15 @@ END $$;
 
 -- digest residue r of an md5 hex column, inline (no function call)
 CREATE FUNCTION flagsmith._r_expr(h text) RETURNS text
-LANGUAGE sql IMMUTABLE STRICT AS $$
+LANGUAGE sql IMMUTABLE STRICT BEGIN ATOMIC
   SELECT format('((((''x'' || substr(%1$s, 1, 8))::bit(32)::bigint %% 9999) * 7291 + ((''x'' || substr(%1$s, 9, 8))::bit(32)::bigint %% 9999) * 1897 + ((''x'' || substr(%1$s, 17, 8))::bit(32)::bigint %% 9999) * 6835 + (''x'' || substr(%1$s, 25, 8))::bit(32)::bigint) %% 9999)', h)
-$$;
+;
+END;
 
 -- Relative cost of a compiled condition: cheap ones are tested first (evaluation
 -- order is unobservable without flag dependencies, which are never compiled).
 CREATE FUNCTION flagsmith._cond_cost(c flagsmith.condition) RETURNS int
-LANGUAGE sql IMMUTABLE AS $$
+LANGUAGE sql IMMUTABLE BEGIN ATOMIC
   SELECT CASE
     WHEN c.status <> 'ok' THEN 0
     WHEN c.operator IN ('IS_SET', 'IS_NOT_SET') THEN 1
@@ -98,14 +103,16 @@ LANGUAGE sql IMMUTABLE AS $$
     WHEN c.operator = 'MODULO' THEN 3
     WHEN c.v_is_semver THEN 5
     ELSE 2 END
-$$;
+;
+END;
 
 -- SQL for one condition. v: the ctxval expression it reads; ikx: the identity
 -- key; hx: its digest column (PERCENTAGE_SPLIT); svx: the parsed SemVer column.
 CREATE FUNCTION flagsmith._compile_cond(c flagsmith.condition, v text, segkey text, ikx text,
                                          hx text DEFAULT NULL, svx text DEFAULT NULL) RETURNS text
 LANGUAGE plpgsql IMMUTABLE
-SET extra_float_digits = 1 AS $$
+SET extra_float_digits = 1
+SET search_path = pg_catalog, flagsmith, pg_temp AS $$
 DECLARE op text := c.operator; sym text; sb text; ib text; fb text; bb text; keyx text; rmax int; r text;
   dint numeric; mx text;
 BEGIN
@@ -191,8 +198,9 @@ BEGIN
 END $$;
 
 -- SQL for a context value read by a (non flag-dependent) condition.
-CREATE FUNCTION flagsmith._compile_value(c flagsmith.condition) RETURNS text
-LANGUAGE plpgsql IMMUTABLE AS $$
+CREATE FUNCTION flagsmith._compile_value(c flagsmith.condition, env_prefix text) RETURNS text
+LANGUAGE plpgsql IMMUTABLE
+SET search_path = pg_catalog, flagsmith, pg_temp AS $$
 DECLARE none text := 'ROW(''n'', NULL, NULL, NULL, NULL)::flagsmith.ctxval'; route text; constx text;
 BEGIN
   constx := CASE WHEN c.const_val IS NULL THEN none ELSE format('%L::flagsmith.ctxval', c.const_val) END;
@@ -201,7 +209,7 @@ BEGIN
   END IF;
   route := CASE c.prop_kind
     WHEN 'jp_identifier' THEN 'flagsmith.ctxval_str(identifier)'
-    WHEN 'jp_identity_key' THEN format('flagsmith.ctxval_str(coalesce(nullif(identity_key, %L), %L || identifier))', '', '@@ENVKEY@@')
+    WHEN 'jp_identity_key' THEN format('flagsmith.ctxval_str(coalesce(nullif(identity_key, %L), %L || identifier))', '', env_prefix)
     WHEN 'jp_trait' THEN format('flagsmith.ctxval_jp(traits -> %L)', c.prop_name)
     WHEN 'jp_trait_path' THEN format('flagsmith.ctxval_jp(flagsmith.jsonb_walk(traits -> %L, %L::text[]))', c.prop_name, c.prop_path)
     WHEN 'jp_const' THEN constx
@@ -220,17 +228,19 @@ END $$;
 --             arrive split into fields and are rebuilt with ROW(...), which the
 --             planner folds back into plain column references.
 CREATE FUNCTION flagsmith._ref_val(mode text, vname text) RETURNS text
-LANGUAGE sql IMMUTABLE AS $$
+LANGUAGE sql IMMUTABLE BEGIN ATOMIC
   SELECT CASE WHEN mode = 'offset' THEN 'u.' || vname
               ELSE format('ROW(t.%1$s_k, t.%1$s_s, t.%1$s_n, t.%1$s_f, t.%1$s_b)::flagsmith.ctxval', vname) END
-$$;
+;
+END;
 
 CREATE FUNCTION flagsmith._ref_sv(mode text, vname text) RETURNS text
-LANGUAGE sql IMMUTABLE AS $$
+LANGUAGE sql IMMUTABLE BEGIN ATOMIC
   SELECT CASE WHEN mode = 'offset' THEN 'u.sv' || substr(vname, 2)
               ELSE format('ROW(u.sv%1$s_major, u.sv%1$s_minor, u.sv%1$s_patch, u.sv%1$s_pre, u.sv%1$s_build)::flagsmith.semver',
                           substr(vname, 2)) END
-$$;
+;
+END;
 
 -- identity function used to place expressions in ROWS FROM (inlined by the planner)
 CREATE FUNCTION flagsmith._fx(anyelement) RETURNS anyelement
@@ -240,7 +250,8 @@ LANGUAGE sql IMMUTABLE PARALLEL SAFE AS 'SELECT $1';
 -- Operands are ordered cheapest first; cost is the most expensive operand.
 CREATE FUNCTION flagsmith._compile_rule(sid bigint, rid int, vcols jsonb, segkey text, mode text,
                                          OUT expr text, OUT cost int)
-LANGUAGE plpgsql STABLE AS $$
+LANGUAGE plpgsql STABLE
+SET search_path = pg_catalog, flagsmith, pg_temp AS $$
 DECLARE r flagsmith.rule; parts text[] := '{}'; pcost int[] := '{}'; subs text[] := '{}'; scost int[] := '{}';
   c flagsmith.condition; ch int; cp text; sp text; sub record; vname text; ikx text; hp text;
 BEGIN
@@ -280,9 +291,10 @@ END $$;
 
 -- identity of a context value source, to share one fenced column between conditions
 CREATE FUNCTION flagsmith._value_key(c flagsmith.condition) RETURNS text
-LANGUAGE sql IMMUTABLE AS $$
+LANGUAGE sql IMMUTABLE BEGIN ATOMIC
   SELECT md5(concat_ws(E'\x1f', c.prop_kind, c.property, c.prop_name, c.prop_path::text, c.const_val::text))
-$$;
+;
+END;
 
 -- The six output expressions of one feature, given where its winner index (wref),
 -- variant index (viref), identity-override document (ioref) and environment-flags
@@ -290,7 +302,8 @@ $$;
 CREATE FUNCTION flagsmith._arm(fname text, en boolean[], vval jsonb[], vals jsonb[], vkey text[], vw text[],
   rsn text[], metas jsonb[], fb_default text, env_fb text, has_io boolean, any_exp boolean,
   wref text, viref text, ioref text, envmref text) RETURNS text[]
-LANGUAGE plpgsql IMMUTABLE AS $$
+LANGUAGE plpgsql IMMUTABLE
+SET search_path = pg_catalog, flagsmith, pg_temp AS $$
 DECLARE fbx text; metax text; enx text; valx text; rsnx text;
 BEGIN
   fbx := format('%L', fb_default);
@@ -329,7 +342,8 @@ END $$;
 CREATE FUNCTION flagsmith._arm_vi(vcnt int[], salts text[], vlo float8[], vhi float8[], voff int[],
                                   wref text, ikref text) RETURNS text
 LANGUAGE plpgsql IMMUTABLE
-SET extra_float_digits = 1 AS $$
+SET extra_float_digits = 1
+SET search_path = pg_catalog, flagsmith, pg_temp AS $$
 BEGIN
   IF cardinality(vlo) = 0 THEN RETURN 'NULL::int'; END IF;
   RETURN format('CASE WHEN %1$s IS NOT NULL AND %2$s > 0 AND (%3$L::int[])[%2$s] > 0 '
@@ -340,11 +354,12 @@ END $$;
 
 -- a ROWS FROM fence over (expression, column names) pairs
 CREATE FUNCTION flagsmith._rows_from(exprs text[], names text[], alias text, is_lateral boolean) RETURNS text
-LANGUAGE sql IMMUTABLE AS $$
+LANGUAGE sql IMMUTABLE BEGIN ATOMIC
   SELECT CASE WHEN is_lateral THEN E'\nCROSS JOIN LATERAL ROWS FROM (' ELSE E'\nFROM ROWS FROM (' END
          || (SELECT string_agg('flagsmith._fx(' || e || ')', E',\n    ') FROM unnest(exprs) e)
          || ') ' || alias || '(' || array_to_string(names, ', ') || ')'
-$$;
+;
+END;
 
 CREATE FUNCTION flagsmith.compile_snapshot(sid bigint) RETURNS boolean
 LANGUAGE plpgsql VOLATILE SECURITY DEFINER
@@ -386,7 +401,8 @@ DECLARE
 BEGIN
   SELECT * INTO sn FROM flagsmith.snapshot x WHERE x.snapshot_id = sid;
   SELECT * INTO env FROM flagsmith.environment e WHERE e.env_key = sn.env_key;
-  PERFORM flagsmith._drop_compiled(sid);
+  -- recompiling replaces the functions in place (CREATE OR REPLACE keeps them, and
+  -- the published entry points that depend on them)
 
   IF sn.has_flag_deps THEN
     note := 'segments read other flags ($.flags...): evaluated by the interpreter';
@@ -423,7 +439,7 @@ BEGIN
     IF NOT vcols ? k THEN
       n := n + 1;
       vcols := vcols || jsonb_build_object(k, 'v' || n);
-      vexpr := replace(flagsmith._compile_value(c), '''@@ENVKEY@@''', quote_literal(sn.ctx_env_key || '_'));
+      vexpr := flagsmith._compile_value(c, sn.ctx_env_key || '_');
       t_off := t_off || format(E',\n      %s AS v%s', vexpr, n);
       t_x := t_x || vexpr;
       t_n := t_n || ARRAY['v' || n || '_k', 'v' || n || '_s', 'v' || n || '_n', 'v' || n || '_f', 'v' || n || '_b'];
@@ -577,6 +593,9 @@ BEGIN
                         head, array_to_string(arms, E'\n    UNION ALL'), sid);
   END IF;
 
+  -- The bodies are SQL-standard (BEGIN ATOMIC): every name in them is resolved now,
+  -- under this function's search_path, so a caller's search_path can never
+  -- redirect them. Every value from the configuration enters them through %L.
   IF length(body) + length(flag_body) > env.max_compiled_bytes THEN
     UPDATE flagsmith.snapshot x SET compiled = false,
       compile_note = format('generated code is %s bytes, over max_compiled_bytes (%s): evaluated by the interpreter',
@@ -585,16 +604,24 @@ BEGIN
     RETURN false;
   END IF;
 
-  EXECUTE format($f$CREATE FUNCTION flagsmith_c.flags_s%s(identifier text, traits jsonb DEFAULT '{}',
+  EXECUTE format($f$CREATE OR REPLACE FUNCTION flagsmith_c.flags_s%s(identifier text, traits jsonb DEFAULT '{}',
       identity_key text DEFAULT NULL, engine_mode boolean DEFAULT false)
-    RETURNS SETOF flagsmith.flag_result LANGUAGE sql STABLE PARALLEL SAFE AS %L$f$, sid, body);
-  EXECUTE format($f$CREATE FUNCTION flagsmith_c.flag_s%s(feature text, identifier text, traits jsonb DEFAULT '{}',
+    RETURNS SETOF flagsmith.flag_result LANGUAGE sql STABLE PARALLEL SAFE
+    BEGIN ATOMIC
+%s;
+    END$f$, sid, body);
+  EXECUTE format($f$CREATE OR REPLACE FUNCTION flagsmith_c.flag_s%s(feature text, identifier text, traits jsonb DEFAULT '{}',
       identity_key text DEFAULT NULL, engine_mode boolean DEFAULT false)
-    RETURNS SETOF flagsmith.flag_result LANGUAGE sql STABLE PARALLEL SAFE AS %L$f$, sid, flag_body);
+    RETURNS SETOF flagsmith.flag_result LANGUAGE sql STABLE PARALLEL SAFE
+    BEGIN ATOMIC
+%s;
+    END$f$, sid, flag_body);
   EXECUTE format('REVOKE ALL ON FUNCTION flagsmith_c.flags_s%s(text, jsonb, text, boolean) FROM PUBLIC', sid);
   EXECUTE format('REVOKE ALL ON FUNCTION flagsmith_c.flag_s%s(text, text, jsonb, text, boolean) FROM PUBLIC', sid);
   PERFORM flagsmith._grant_reader(format('FUNCTION flagsmith_c.flags_s%s(text, jsonb, text, boolean)', sid));
   PERFORM flagsmith._grant_reader(format('FUNCTION flagsmith_c.flag_s%s(text, text, jsonb, text, boolean)', sid));
+  PERFORM flagsmith._adopt(format('flagsmith_c.flags_s%s(text, jsonb, text, boolean)', sid)::regprocedure);
+  PERFORM flagsmith._adopt(format('flagsmith_c.flag_s%s(text, text, jsonb, text, boolean)', sid)::regprocedure);
 
   UPDATE flagsmith.snapshot x SET compiled = true, compile_note = NULL, compile_bytes = length(body) + length(flag_body),
     compile_ms = round(extract(epoch FROM clock_timestamp() - t0)::numeric * 1000, 2)

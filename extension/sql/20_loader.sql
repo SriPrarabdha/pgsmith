@@ -5,17 +5,18 @@
 -- wins, at the position of the key's first occurrence.
 CREATE FUNCTION flagsmith._json_entries(j json)
 RETURNS TABLE (key text, value json, pos int)
-LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
+LANGUAGE sql IMMUTABLE PARALLEL SAFE BEGIN ATOMIC
   SELECT e.key, (array_agg(e.value ORDER BY e.n DESC))[1], (row_number() OVER (ORDER BY min(e.n)))::int
   FROM json_each(CASE WHEN json_typeof(j) = 'object' THEN j ELSE '{}'::json END)
        WITH ORDINALITY AS e(key, value, n)
   GROUP BY e.key
   ORDER BY min(e.n)
-$$;
+;
+END;
 
 -- A JSON value reached by a JSONPath query, as a context value (non-scalars are None).
 CREATE FUNCTION flagsmith.ctxval_json(j json) RETURNS flagsmith.ctxval
-LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
+LANGUAGE sql IMMUTABLE PARALLEL SAFE BEGIN ATOMIC
   SELECT CASE json_typeof(j)
     WHEN 'string' THEN flagsmith.ctxval_str(j #>> '{}')
     WHEN 'number' THEN
@@ -25,12 +26,14 @@ LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
     WHEN 'boolean' THEN ROW('b', NULL, NULL, NULL, j::text = 'true')::flagsmith.ctxval
     ELSE ROW('n', NULL, NULL, NULL, NULL)::flagsmith.ctxval
   END
-$$;
+;
+END;
 
 -- A JSON number as numeric, exactly as Python sees it: ints exact, floats as the
 -- exact value of the double they parse to.
 CREATE FUNCTION flagsmith._json_num_exact(j json) RETURNS numeric
-LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE AS $$
+LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE
+SET search_path = pg_catalog, flagsmith, pg_temp AS $$
 DECLARE f float8;
 BEGIN
   -- JSON cannot carry infinities; the SDK's identity overrides use priority -inf,
@@ -45,15 +48,24 @@ BEGIN
 END $$;
 
 CREATE FUNCTION flagsmith._warn(sid bigint, sev text, code text, path text, detail text) RETURNS void
-LANGUAGE sql AS $$
+LANGUAGE sql BEGIN ATOMIC
   INSERT INTO flagsmith.snapshot_warning (snapshot_id, severity, code, path, detail)
   VALUES (sid, sev, code, path, detail)
-$$;
+;
+END;
+
+-- The length of a JSON array; NULL for anything else (never an error).
+CREATE FUNCTION flagsmith._json_len(j json) RETURNS int
+LANGUAGE sql IMMUTABLE PARALLEL SAFE
+BEGIN ATOMIC
+  SELECT CASE WHEN json_typeof(j) = 'array' THEN json_array_length(j) END;
+END;
 
 -- IN values: a JSON array, or a string (JSON array when it starts with '[' and
 -- parses, otherwise split on commas, untrimmed). Non-strings become Python str().
 CREATE FUNCTION flagsmith._in_values(v json) RETURNS text[]
-LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE AS $$
+LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE
+SET search_path = pg_catalog, flagsmith, pg_temp AS $$
 DECLARE s text; parsed json;
 BEGIN
   IF v IS NULL THEN RETURN NULL; END IF;
@@ -78,7 +90,8 @@ END $$;
 CREATE FUNCTION flagsmith._load_condition(
   sid bigint, cid int, rid int, cnd json, ctx json, policy text, path text)
 RETURNS void
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql
+SET search_path = pg_catalog, flagsmith, pg_temp AS $$
 DECLARE
   prop text := coalesce(cnd ->> 'property', '');
   op text := coalesce(cnd ->> 'operator', '');
@@ -221,7 +234,8 @@ END $$;
 CREATE FUNCTION flagsmith._load_rules(
   sid bigint, seg int, rules json, parent int, path text, ctx json, policy text,
   INOUT next_rule int, INOUT next_cond int)
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql
+SET search_path = pg_catalog, flagsmith, pg_temp AS $$
 DECLARE r json; k int := 0; rid int; c json; ck int; t text;
 BEGIN
   IF rules IS NULL OR json_typeof(rules) <> 'array' THEN RETURN; END IF;
@@ -251,7 +265,8 @@ END $$;
 -- One feature context (an environment default or a segment override) and its variants.
 CREATE FUNCTION flagsmith._load_fc(sid bigint, fcid int, fc json, seg int, ordn int, path text)
 RETURNS void
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql
+SET search_path = pg_catalog, flagsmith, pg_temp AS $$
 DECLARE
   vars json := fc -> 'variants';
   nv int := 0;
@@ -295,7 +310,8 @@ BEGIN
 END $$;
 
 CREATE FUNCTION flagsmith._alias_for(name text) RETURNS text
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql
+SET search_path = pg_catalog, flagsmith, pg_temp AS $$
 DECLARE base text; a text; k int := 1;
 BEGIN
   base := left(trim(both '_' from regexp_replace(lower(coalesce(name, 'env')), '[^a-z0-9]+', '_', 'g')), 30);
@@ -340,13 +356,17 @@ DECLARE
   nfeat int;
   nctxfc int;
   r record;
-  o json;
   k int;
   rej text;
   do_compile boolean;
   n_io int := 0;
+  n_ctx int;
   v_ctx_rules int;
   v_ctx_conds int;
+  io_keys text[];
+  io_vals json[];
+  bad_io text;
+  nestloop text;
 BEGIN
   IF kind NOT IN ('live', 'candidate', 'test') THEN
     RAISE EXCEPTION 'pg_flagsmith: kind must be live, candidate or test, not %', kind;
@@ -379,8 +399,8 @@ BEGIN
         INSERT INTO flagsmith.load_log (env_key, snapshot_id, source, source_rev, outcome)
         VALUES (ek, existing, source, source_rev, 'reused');
       ELSE
-        INSERT INTO flagsmith.load_log (env_key, snapshot_id, source, source_rev, outcome)
-        VALUES (ek, existing, source, source_rev, CASE WHEN env.pinned THEN 'pinned' ELSE 'unchanged' END);
+        -- an unchanged poll is not a load: record when it happened, not a log row
+        UPDATE flagsmith.environment e SET last_checked_at = clock_timestamp() WHERE e.env_key = ek;
       END IF;
     END IF;
     RETURN existing;
@@ -393,7 +413,7 @@ BEGIN
           identity_overrides)
   RETURNING snapshot_id INTO sid;
 
-  -- segments (context order), then the SDK's per-identity override segments
+  -- the context's segments, in context order
   FOR seg IN SELECT * FROM flagsmith._json_entries(ctx -> 'segments') LOOP
     nseg := nseg + 1;
     INSERT INTO flagsmith.segment (snapshot_id, seg_ord, segment_key, name, metadata, identity_free, reads_flags)
@@ -408,22 +428,7 @@ BEGIN
   END LOOP;
   v_ctx_rules := next_rule - 1;
   v_ctx_conds := next_cond - 1;
-  FOR seg IN SELECT * FROM flagsmith._json_entries(identity_overrides) LOOP
-    nseg := nseg + 1;
-    n_io := n_io + 1;
-    INSERT INTO flagsmith.segment (snapshot_id, seg_ord, segment_key, name, metadata, source,
-                                   io_identifier, identity_free, reads_flags)
-    VALUES (sid, nseg, coalesce(seg.value ->> 'key', 'identity_overrides'),
-            coalesce(seg.value ->> 'name', 'identity_overrides'),
-            CASE WHEN json_typeof(seg.value -> 'metadata') = 'object'
-                      AND (seg.value -> 'metadata')::jsonb <> '{}'::jsonb
-                 THEN (seg.value -> 'metadata')::jsonb END,
-            'identity_override', seg.key, false, false);
-    SELECT l.next_rule, l.next_cond INTO next_rule, next_cond
-    FROM flagsmith._load_rules(sid, nseg, seg.value -> 'rules', NULL,
-                               format('identity_overrides.%s', seg.key),
-                               ctx, env.regex_policy, next_rule, next_cond) l;
-  END LOOP;
+  n_ctx := nseg;
 
   -- feature defaults: fc_id 1..n_features, in context order
   FOR r IN SELECT * FROM flagsmith._json_entries(ctx -> 'features') LOOP
@@ -431,73 +436,172 @@ BEGIN
     PERFORM flagsmith._load_fc(sid, fcid, r.value, NULL, r.pos, format('features.%s', r.key));
   END LOOP;
   nfeat := fcid;
-  -- overrides, segment by segment
-  FOR seg IN SELECT s.seg_ord, s.source, s.io_identifier, e.key, e.value
-             FROM flagsmith.segment s
-             LEFT JOIN flagsmith._json_entries(ctx -> 'segments') e
-               ON s.source = 'api' AND e.pos = s.seg_ord
-             WHERE s.snapshot_id = sid ORDER BY s.seg_ord LOOP
-    IF seg.source = 'identity_override' THEN
-      o := identity_overrides -> seg.io_identifier;
-    ELSE
-      o := seg.value;
-    END IF;
-    IF seg.source = 'identity_override' AND nctxfc IS NULL THEN
-      nctxfc := fcid;
-    END IF;
+  -- the context's segment overrides, segment by segment
+  FOR seg IN SELECT e.pos AS seg_ord, e.key, e.value FROM flagsmith._json_entries(ctx -> 'segments') e ORDER BY e.pos LOOP
     k := 0;
-    IF json_typeof(o -> 'overrides') = 'array' THEN
-      UPDATE flagsmith.segment s SET ov_first = fcid + 1
-      WHERE s.snapshot_id = sid AND s.seg_ord = seg.seg_ord;
-      FOR r IN SELECT value FROM json_array_elements(o -> 'overrides') LOOP
+    IF json_typeof(seg.value -> 'overrides') = 'array' THEN
+      UPDATE flagsmith.segment s SET ov_first = fcid + 1 WHERE s.snapshot_id = sid AND s.seg_ord = seg.seg_ord;
+      FOR r IN SELECT value FROM json_array_elements(seg.value -> 'overrides') LOOP
         fcid := fcid + 1;
         PERFORM flagsmith._load_fc(sid, fcid, r.value, seg.seg_ord, k,
-                                   format('segments.%s.overrides.%s', coalesce(seg.key, seg.io_identifier), k));
+                                   format('segments.%s.overrides.%s', seg.key, k));
         k := k + 1;
       END LOOP;
       UPDATE flagsmith.segment s SET ov_count = k WHERE s.snapshot_id = sid AND s.seg_ord = seg.seg_ord;
     END IF;
   END LOOP;
-  nctxfc := coalesce(nctxfc, fcid);
+  nctxfc := fcid;
 
-  -- rule navigation: conditions are contiguous per rule; rules form sibling lists
+  -- The SDK's per-identity override segments, loaded set-based: an environment can
+  -- have very many. Each must have the SDK's shape (one ALL rule with the one
+  -- condition $.identity.identifier IN [...]); membership is an index probe.
+  IF json_typeof(identity_overrides) = 'object' THEN
+    SELECT array_agg(e.key ORDER BY e.pos), array_agg(e.value ORDER BY e.pos)
+    INTO io_keys, io_vals FROM flagsmith._json_entries(identity_overrides) e;
+  END IF;
+  n_io := coalesce(cardinality(io_keys), 0);
+  IF n_io > 0 THEN
+    SELECT u.k INTO bad_io FROM unnest(io_keys, io_vals) u(k, v)
+    WHERE NOT coalesce(
+      flagsmith._json_len(u.v -> 'rules') = 1
+      AND (u.v -> 'rules' -> 0 ->> 'type') IN ('ALL', 'ANY')
+      AND flagsmith._json_len(u.v -> 'rules' -> 0 -> 'conditions') = 1
+      AND coalesce(flagsmith._json_len(u.v -> 'rules' -> 0 -> 'rules'), 0) = 0
+      AND (u.v -> 'rules' -> 0 -> 'conditions' -> 0 ->> 'property') = '$.identity.identifier'
+      AND (u.v -> 'rules' -> 0 -> 'conditions' -> 0 ->> 'operator') = 'IN'
+      AND flagsmith._in_values(u.v -> 'rules' -> 0 -> 'conditions' -> 0 -> 'value') IS NOT NULL
+      AND (json_typeof(u.v -> 'overrides') IS DISTINCT FROM 'array'
+           OR NOT EXISTS (SELECT 1 FROM json_array_elements(u.v -> 'overrides') o WHERE o ->> 'name' IS NULL)),
+      false)
+    LIMIT 1;
+    IF bad_io IS NOT NULL THEN
+      RAISE EXCEPTION 'pg_flagsmith: identity_overrides.%: identity_overrides segments must have the SDK shape: '
+        'one ALL rule with one condition $.identity.identifier IN [...], and overrides with names', bad_io;
+    END IF;
+
+    -- segments, with their overrides as one jsonb (the compiled tier's lookup):
+    -- per feature, the override with the lowest priority, then the first
+    INSERT INTO flagsmith.segment (snapshot_id, seg_ord, segment_key, name, metadata, source, io_identifier,
+                                   identity_free, reads_flags, io_indexed, first_rule, ov_first, ov_count, io_overrides)
+    SELECT sid, n_ctx + x.i, coalesce(x.v ->> 'key', 'identity_overrides'), coalesce(x.v ->> 'name', 'identity_overrides'),
+           CASE WHEN json_typeof(x.v -> 'metadata') = 'object' AND (x.v -> 'metadata')::jsonb <> '{}'::jsonb
+                THEN (x.v -> 'metadata')::jsonb END,
+           'identity_override', x.k, false, false, true, next_rule + x.i - 1,
+           CASE WHEN x.n_ov IS NOT NULL
+                THEN nctxfc + 1 + coalesce(sum(x.n_ov) OVER (ORDER BY x.i ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING), 0) END,
+           coalesce(x.n_ov, 0),
+           (SELECT jsonb_object_agg(z.name, z.doc) FROM (
+              SELECT DISTINCT ON (o.value ->> 'name') o.value ->> 'name' AS name,
+                     jsonb_build_object('enabled', coalesce((o.value ->> 'enabled')::boolean, false),
+                                        'value', coalesce((o.value -> 'value')::jsonb, 'null'::jsonb))
+                     || CASE WHEN json_typeof(o.value -> 'metadata') = 'object' AND (o.value -> 'metadata')::text <> '{}'
+                                  AND (o.value -> 'metadata')::jsonb <> '{}'::jsonb
+                             THEN jsonb_build_object('metadata', (o.value -> 'metadata')::jsonb) ELSE '{}'::jsonb END AS doc
+              FROM json_array_elements(CASE WHEN x.n_ov IS NOT NULL THEN x.v -> 'overrides' ELSE '[]'::json END)
+                   WITH ORDINALITY o(value, n)
+              ORDER BY o.value ->> 'name', coalesce(flagsmith._json_num_exact(o.value -> 'priority'), 'Infinity'::numeric), o.n) z)
+    FROM (SELECT u.i, u.k, u.v,
+                 CASE WHEN json_typeof(u.v -> 'overrides') = 'array' THEN json_array_length(u.v -> 'overrides') END AS n_ov
+          FROM unnest(io_keys, io_vals) WITH ORDINALITY u(k, v, i)) x;
+
+    INSERT INTO flagsmith.rule (snapshot_id, rule_id, seg_ord, parent_id, ord, rule_type, first_cond, n_cond)
+    SELECT sid, next_rule + u.i - 1, n_ctx + u.i, NULL, 0, u.v -> 'rules' -> 0 ->> 'type', next_cond + u.i - 1, 1
+    FROM unnest(io_keys, io_vals) WITH ORDINALITY u(k, v, i);
+
+    -- the condition row _load_condition writes for $.identity.identifier IN <value>
+    INSERT INTO flagsmith.condition (snapshot_id, cond_id, rule_id, property, operator, value_raw,
+      prop_kind, prop_name, prop_path, const_val, v_text, v_is_str, v_int, v_float, v_bool,
+      v_semver, v_is_semver, v_semver_txt, in_set, v_regex, v_mod_div, v_mod_rem, v_threshold, status)
+    SELECT sid, next_cond + y.i - 1, next_rule + y.i - 1, '$.identity.identifier', 'IN', y.cv,
+           'jp_identifier', NULL, NULL, NULL, z.vs, z.is_str,
+           CASE WHEN z.is_str THEN flagsmith.py_int(z.vs) END,
+           CASE WHEN z.is_str THEN flagsmith.py_float(z.vs) END,
+           CASE WHEN z.is_str THEN z.vs NOT IN ('False', 'false') ELSE true END,
+           CASE WHEN z.is_str AND right(z.vs, 7) = ':semver' THEN flagsmith.semver_parse(left(z.vs, -7)) END,
+           z.is_str AND right(z.vs, 7) = ':semver',
+           CASE WHEN z.is_str AND right(z.vs, 7) = ':semver' THEN left(z.vs, -7) END,
+           flagsmith._in_values(y.cv), NULL, NULL, NULL, NULL, 'ok'
+    FROM (SELECT u.i, u.v -> 'rules' -> 0 -> 'conditions' -> 0 -> 'value' AS cv
+          FROM unnest(io_keys, io_vals) WITH ORDINALITY u(k, v, i)) y
+    CROSS JOIN LATERAL (SELECT flagsmith.py_str_json(y.cv) AS vs, json_typeof(y.cv) = 'string' AS is_str) z;
+
+    INSERT INTO flagsmith.identity_override (snapshot_id, in_key, seg_ord)
+    SELECT DISTINCT sid, m, n_ctx + (c.cond_id - next_cond + 1)
+    FROM flagsmith.condition c CROSS JOIN LATERAL unnest(c.in_set) m
+    WHERE c.snapshot_id = sid AND c.cond_id >= next_cond;
+
+    -- their overrides (_load_fc takes the rare ones with variants, which the SDK never writes)
+    INSERT INTO flagsmith.feature_context (snapshot_id, fc_id, feature_name, seg_ord, ord, feature_key,
+      enabled, value, value_json, priority, metadata)
+    SELECT sid, o.fc_id, o.fc ->> 'name', o.seg_ord, o.ord, coalesce(o.fc ->> 'key', ''),
+           coalesce((o.fc ->> 'enabled')::boolean, false),
+           coalesce((o.fc -> 'value')::jsonb, 'null'::jsonb), coalesce(o.fc -> 'value', 'null'::json),
+           coalesce(flagsmith._json_num_exact(o.fc -> 'priority'), 'Infinity'::numeric),
+           CASE WHEN json_typeof(o.fc -> 'metadata') = 'object' AND (o.fc -> 'metadata')::text <> '{}'
+                     AND (o.fc -> 'metadata')::jsonb <> '{}'::jsonb
+                THEN (o.fc -> 'metadata')::jsonb END
+    FROM (SELECT (n_ctx + u.i)::int AS seg_ord, (ov.n - 1)::int AS ord, ov.value AS fc,
+                 (nctxfc + row_number() OVER (ORDER BY u.i, ov.n))::int AS fc_id
+          FROM unnest(io_keys, io_vals) WITH ORDINALITY u(k, v, i)
+          CROSS JOIN LATERAL json_array_elements(CASE WHEN json_typeof(u.v -> 'overrides') = 'array'
+                                                      THEN u.v -> 'overrides' ELSE '[]'::json END)
+                             WITH ORDINALITY ov(value, n)) o
+    WHERE coalesce(flagsmith._json_len(o.fc -> 'variants'), 0) = 0;
+    PERFORM flagsmith._load_fc(sid, o.fc_id, o.fc, o.seg_ord, o.ord, format('identity_overrides.%s', o.k))
+    FROM (SELECT u.k, (n_ctx + u.i)::int AS seg_ord, (ov.n - 1)::int AS ord, ov.value AS fc,
+                 (nctxfc + row_number() OVER (ORDER BY u.i, ov.n))::int AS fc_id
+          FROM unnest(io_keys, io_vals) WITH ORDINALITY u(k, v, i)
+          CROSS JOIN LATERAL json_array_elements(CASE WHEN json_typeof(u.v -> 'overrides') = 'array'
+                                                      THEN u.v -> 'overrides' ELSE '[]'::json END)
+                             WITH ORDINALITY ov(value, n)) o
+    WHERE coalesce(flagsmith._json_len(o.fc -> 'variants'), 0) > 0;
+
+    SELECT nctxfc + coalesce(sum(CASE WHEN json_typeof(u.v -> 'overrides') = 'array'
+                                      THEN json_array_length(u.v -> 'overrides') ELSE 0 END), 0)::int
+    INTO fcid FROM unnest(io_keys, io_vals) u(k, v);
+    next_rule := next_rule + n_io;
+    next_cond := next_cond + n_io;
+    nseg := nseg + n_io;
+  END IF;
+
+  -- rule navigation for the context's rules (conditions are contiguous per rule;
+  -- rules form sibling lists); identity-override rules were written complete
   UPDATE flagsmith.rule ru SET first_cond = c.first, n_cond = c.cnt
-  FROM (SELECT rule_id, min(cond_id) AS first, count(*)::int AS cnt
-        FROM flagsmith.condition WHERE snapshot_id = sid GROUP BY rule_id) c
+  FROM (SELECT x.rule_id, min(x.cond_id) AS first, count(*)::int AS cnt
+        FROM flagsmith.condition x WHERE x.snapshot_id = sid AND x.cond_id <= v_ctx_conds GROUP BY x.rule_id) c
   WHERE ru.snapshot_id = sid AND ru.rule_id = c.rule_id;
   UPDATE flagsmith.rule ru SET next_sibling = x.nxt
-  FROM (SELECT rule_id, lead(rule_id) OVER (PARTITION BY seg_ord, parent_id ORDER BY ord) AS nxt
-        FROM flagsmith.rule WHERE snapshot_id = sid) x
+  FROM (SELECT y.rule_id, lead(y.rule_id) OVER (PARTITION BY y.seg_ord, y.parent_id ORDER BY y.ord) AS nxt
+        FROM flagsmith.rule y WHERE y.snapshot_id = sid AND y.rule_id <= v_ctx_rules) x
   WHERE ru.snapshot_id = sid AND ru.rule_id = x.rule_id AND x.nxt IS NOT NULL;
   UPDATE flagsmith.rule ru SET first_child = x.child
-  FROM (SELECT parent_id, min(rule_id) AS child FROM flagsmith.rule
-        WHERE snapshot_id = sid AND parent_id IS NOT NULL GROUP BY parent_id) x
+  FROM (SELECT y.parent_id, min(y.rule_id) AS child FROM flagsmith.rule y
+        WHERE y.snapshot_id = sid AND y.rule_id <= v_ctx_rules AND y.parent_id IS NOT NULL GROUP BY y.parent_id) x
   WHERE ru.snapshot_id = sid AND ru.rule_id = x.parent_id;
   UPDATE flagsmith.segment s SET first_rule = x.first
-  FROM (SELECT seg_ord, min(rule_id) AS first FROM flagsmith.rule
-        WHERE snapshot_id = sid AND parent_id IS NULL GROUP BY seg_ord) x
+  FROM (SELECT y.seg_ord, min(y.rule_id) AS first FROM flagsmith.rule y
+        WHERE y.snapshot_id = sid AND y.rule_id <= v_ctx_rules AND y.parent_id IS NULL GROUP BY y.seg_ord) x
   WHERE s.snapshot_id = sid AND s.seg_ord = x.seg_ord;
 
-  -- SDK environment-flags filter, and flag dependencies
+  -- SDK environment-flags filter (identity-free segments), and flag dependencies
   UPDATE flagsmith.segment s SET
-    identity_free = s.source = 'api' AND NOT EXISTS (
-      SELECT 1 FROM flagsmith.rule ru JOIN flagsmith.condition c
-        ON c.snapshot_id = ru.snapshot_id AND c.rule_id = ru.rule_id
-      WHERE ru.snapshot_id = sid AND ru.seg_ord = s.seg_ord
-        AND NOT (left(c.property, 14) IN ('$.environment.', '$.environment[')
-                 OR left(c.property, 8) IN ('$.flags.', '$.flags['))),
-    reads_flags = EXISTS (
-      SELECT 1 FROM flagsmith.rule ru JOIN flagsmith.condition c
-        ON c.snapshot_id = ru.snapshot_id AND c.rule_id = ru.rule_id
-      WHERE ru.snapshot_id = sid AND ru.seg_ord = s.seg_ord AND left(c.property, 7) = '$.flags')
-  WHERE s.snapshot_id = sid;
+    identity_free = NOT a.identity_cond,
+    reads_flags = a.flags_cond
+  FROM (SELECT ru.seg_ord,
+               bool_or(NOT (left(c.property, 14) IN ('$.environment.', '$.environment[')
+                            OR left(c.property, 8) IN ('$.flags.', '$.flags['))) AS identity_cond,
+               bool_or(left(c.property, 7) = '$.flags') AS flags_cond
+        FROM flagsmith.rule ru JOIN flagsmith.condition c ON c.snapshot_id = ru.snapshot_id AND c.rule_id = ru.rule_id
+        WHERE ru.snapshot_id = sid AND ru.rule_id <= v_ctx_rules AND c.cond_id <= v_ctx_conds
+        GROUP BY ru.seg_ord) a
+  WHERE s.snapshot_id = sid AND s.seg_ord = a.seg_ord;
 
-  -- identity overrides: a segment whose only rule is ALL/ANY [$.identity.identifier IN [...]]
-  -- is answered by an index probe instead of a list scan
+  -- a context segment whose only rule is ALL/ANY [$.identity.identifier IN [...]]
+  -- is answered by an index probe instead of a list scan, like identity overrides
   UPDATE flagsmith.segment s SET io_indexed = true
   FROM flagsmith.rule ru JOIN flagsmith.condition c
     ON c.snapshot_id = ru.snapshot_id AND c.rule_id = ru.rule_id
-  WHERE s.snapshot_id = sid AND ru.snapshot_id = sid AND ru.seg_ord = s.seg_ord
+  WHERE s.snapshot_id = sid AND s.seg_ord <= n_ctx AND ru.snapshot_id = sid AND ru.seg_ord = s.seg_ord
     AND ru.parent_id IS NULL AND ru.next_sibling IS NULL AND ru.first_child IS NULL
     AND ru.rule_type IN ('ALL', 'ANY') AND ru.n_cond = 1
     AND c.operator = 'IN' AND c.property = '$.identity.identifier' AND c.status = 'ok'
@@ -508,39 +612,25 @@ BEGIN
   JOIN flagsmith.rule ru ON ru.snapshot_id = sid AND ru.rule_id = s.first_rule
   JOIN flagsmith.condition c ON c.snapshot_id = sid AND c.cond_id = ru.first_cond
   CROSS JOIN LATERAL unnest(c.in_set) m
-  WHERE s.snapshot_id = sid AND s.io_indexed;
-  IF EXISTS (SELECT 1 FROM flagsmith.segment s WHERE s.snapshot_id = sid
-             AND s.source = 'identity_override' AND NOT s.io_indexed) THEN
-    RAISE EXCEPTION 'pg_flagsmith: identity_overrides segments must have the SDK shape: '
-      'one ALL rule with one condition $.identity.identifier IN [...]';
-  END IF;
+  WHERE s.snapshot_id = sid AND s.seg_ord <= n_ctx AND s.io_indexed;
 
-  -- per-identity override segments, as one jsonb per identity (compiled tier lookup)
-  UPDATE flagsmith.segment s SET io_overrides = x.ov
-  FROM (SELECT f.seg_ord,
-               jsonb_object_agg(f.feature_name, jsonb_build_object('enabled', f.enabled, 'value', f.value)
-                                || CASE WHEN f.metadata IS NULL THEN '{}'::jsonb
-                                        ELSE jsonb_build_object('metadata', f.metadata) END) AS ov
-        FROM (SELECT DISTINCT ON (fc.seg_ord, fc.feature_name) fc.*
-              FROM flagsmith.feature_context fc
-              JOIN flagsmith.segment g ON g.snapshot_id = fc.snapshot_id AND g.seg_ord = fc.seg_ord
-              WHERE fc.snapshot_id = sid AND g.source = 'identity_override'
-              ORDER BY fc.seg_ord, fc.feature_name, fc.priority, fc.ord) f
-        GROUP BY f.seg_ord) x
-  WHERE s.snapshot_id = sid AND s.seg_ord = x.seg_ord;
-
-  -- override precedence: lower priority wins, then context order
+  -- override precedence: lower priority wins, then context order. One window over
+  -- every override (there can be very many): hash joins, whatever the statistics say
+  -- about the rows this transaction just wrote.
+  nestloop := current_setting('enable_nestloop');
+  PERFORM set_config('enable_nestloop', 'off', true);
   UPDATE flagsmith.feature_context f SET win_rank = x.rnk
-  FROM (SELECT fc_id, row_number() OVER (PARTITION BY feature_name ORDER BY priority, seg_ord, ord)::int AS rnk
-        FROM flagsmith.feature_context WHERE snapshot_id = sid AND seg_ord IS NOT NULL) x
+  FROM (SELECT y.fc_id, row_number() OVER (PARTITION BY y.feature_name ORDER BY y.priority, y.seg_ord, y.ord)::int AS rnk
+        FROM flagsmith.feature_context y WHERE y.snapshot_id = sid AND y.seg_ord IS NOT NULL) x
   WHERE f.snapshot_id = sid AND f.fc_id = x.fc_id;
+  PERFORM set_config('enable_nestloop', nestloop, true);
   -- DEFAULT when a segment of the context overrides the feature, STATIC otherwise
-  UPDATE flagsmith.feature_context f SET fallback_reason =
-    CASE WHEN EXISTS (SELECT 1 FROM flagsmith.feature_context o
-                      WHERE o.snapshot_id = sid AND o.seg_ord IS NOT NULL AND o.seg_ord <= nseg - n_io
-                        AND o.feature_name = f.feature_name)
-         THEN 'DEFAULT' ELSE 'STATIC' END
+  UPDATE flagsmith.feature_context f SET fallback_reason = 'STATIC'
   WHERE f.snapshot_id = sid AND f.seg_ord IS NULL;
+  UPDATE flagsmith.feature_context f SET fallback_reason = 'DEFAULT'
+  WHERE f.snapshot_id = sid AND f.seg_ord IS NULL
+    AND f.feature_name IN (SELECT o.feature_name FROM flagsmith.feature_context o
+                           WHERE o.snapshot_id = sid AND o.fc_id > nfeat AND o.fc_id <= nctxfc);
 
   UPDATE flagsmith.snapshot s SET
     n_ctx_segments = nseg - n_io, n_ctx_fcs = nctxfc, n_features = nfeat, n_identity_overrides = n_io,
@@ -552,6 +642,15 @@ BEGIN
   IF EXISTS (SELECT 1 FROM flagsmith.snapshot s WHERE s.snapshot_id = sid AND s.has_flag_deps) THEN
     PERFORM flagsmith._warn(sid, 'warning', 'flag_dependency', 'segments',
       'segments read other flags ($.flags...): this snapshot is evaluated by the interpreter');
+  END IF;
+
+  -- Fresh statistics for a big snapshot: the compiler's queries, and lookups after the
+  -- commit, join rows the planner has not seen yet; with stale estimates it picks
+  -- nested loops that rescan the whole snapshot per row. (ANALYZE counts this
+  -- transaction's own rows; small loads skip it.)
+  IF n_io >= 1000 OR fcid + v_ctx_rules + v_ctx_conds >= 20000 THEN
+    ANALYZE flagsmith.segment, flagsmith.rule, flagsmith.condition, flagsmith.feature_context,
+            flagsmith.identity_override, flagsmith.variant;
   END IF;
 
   -- 4. validate: a rejected snapshot rolls back and the previous one keeps serving
@@ -599,4 +698,37 @@ BEGIN
     ek, sid, kind, nseg - n_io, nfeat, next_cond - 1, fcid - nfeat, n_io,
     round(extract(epoch FROM clock_timestamp() - t0)::numeric * 1000, 1);
   RETURN sid;
+END $$;
+
+-- load_context() for sync clients: also says what the load did.
+--   outcome: 'loaded' (a new snapshot now serves), 'reused' (an earlier snapshot
+--   with this content serves again), 'unchanged' (already serving), 'pinned'
+--   (loaded but not served: the environment is pinned)
+CREATE FUNCTION flagsmith.apply_context(
+  ctx json,
+  identity_overrides json DEFAULT NULL,
+  source text DEFAULT 'manual',
+  source_rev text DEFAULT NULL,
+  env_key text DEFAULT NULL)
+RETURNS TABLE (snapshot_id bigint, outcome text)
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER
+SET search_path = pg_catalog, flagsmith, pg_temp AS $$
+DECLARE
+  ek text := coalesce(env_key, ctx -> 'environment' ->> 'key');
+  before bigint;
+  sid bigint;
+BEGIN
+  IF ek IS NULL THEN
+    RAISE EXCEPTION 'pg_flagsmith: no environment key (pass env_key or set context.environment.key)';
+  END IF;
+  -- the same lock load_context takes: nothing else loads this environment in between
+  PERFORM pg_advisory_xact_lock(hashtextextended('flagsmith:' || ek, 0));
+  SELECT max(l.load_id) INTO before FROM flagsmith.load_log l WHERE l.env_key = ek;
+  sid := flagsmith.load_context(ctx, env_key => ek, source => source, source_rev => source_rev,
+                                identity_overrides => identity_overrides);
+  snapshot_id := sid;
+  SELECT l.outcome INTO outcome FROM flagsmith.load_log l
+  WHERE l.env_key = ek AND l.load_id > coalesce(before, 0) ORDER BY l.load_id DESC LIMIT 1;
+  outcome := coalesce(outcome, 'unchanged');
+  RETURN NEXT;
 END $$;

@@ -11,10 +11,10 @@ jobs:
   plan:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
       - uses: your-org/pg-flagsmith/action@v0.1.0
         with:
-          database-url: ${{ secrets.FLAGSHIFT_DATABASE_URL }}   # a read replica is fine
+          database-url: ${{ secrets.FLAGSHIFT_DATABASE_URL }}   # a flagsmith_planner role on the primary
           environment: production
           population: app.users
           patch: flags/production.json

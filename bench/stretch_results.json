@@ -1,0 +1,132 @@
+{
+  "machine": "AMD Ryzen 9 9950X3D 16-Core Processor, 32 cores",
+  "mapper": [
+    {
+      "document": "local Flagsmith Production (5 features, 5 segments)",
+      "bytes": 7837,
+      "python_map_ms": 0.09317463263869286,
+      "sql_map_ms": 4.609851166605949,
+      "unchanged_poll_hash_ms": 0.07927929982542992,
+      "pusher_load_ms": 11.178637389093637,
+      "in_db_load_ms": 15.22970711812377
+    },
+    {
+      "document": "Edge Proxy profile (50 features, 15 segments, 750 overrides)",
+      "bytes": 243894,
+      "python_map_ms": 1.8945741467177868,
+      "sql_map_ms": 45.90821173042059,
+      "unchanged_poll_hash_ms": 0.2939426340162754,
+      "pusher_load_ms": 101.97140602394938,
+      "in_db_load_ms": 147.6402268745005
+    },
+    {
+      "document": "profile + 10,000 identity overrides",
+      "bytes": 6194384,
+      "python_map_ms": 253.44315310940146,
+      "sql_map_ms": 946.4916889555752,
+      "unchanged_poll_hash_ms": 5.113428924232721,
+      "pusher_load_ms": 2530.225981026888,
+      "in_db_load_ms": 3602.400904055685
+    },
+    {
+      "document": "profile + 100,000 identity overrides",
+      "bytes": 60149454,
+      "python_map_ms": 1720.7133588381112,
+      "sql_map_ms": 9328.12920305878,
+      "unchanged_poll_hash_ms": 77.79902406036854,
+      "pusher_load_ms": 28422.86016140133,
+      "in_db_load_ms": 35151.0353772901
+    }
+  ],
+  "queue": {
+    "enqueue": [
+      {
+        "clients": 1,
+        "track_exposure": {
+          "tps": 2025.996871,
+          "latency_ms": 0.494
+        },
+        "plain_insert": {
+          "tps": 2033.042982,
+          "latency_ms": 0.492
+        },
+        "variant": {
+          "tps": 1296.856889,
+          "latency_ms": 0.771
+        },
+        "track_variant": {
+          "tps": 762.899268,
+          "latency_ms": 1.311
+        },
+        "track_exposure_async_commit": {
+          "tps": 43200.872597,
+          "latency_ms": 0.023
+        }
+      },
+      {
+        "clients": 8,
+        "track_exposure": {
+          "tps": 8119.591314,
+          "latency_ms": 0.985
+        },
+        "plain_insert": {
+          "tps": 8122.809211,
+          "latency_ms": 0.985
+        },
+        "variant": {
+          "tps": 9453.291624,
+          "latency_ms": 0.846
+        },
+        "track_variant": {
+          "tps": 4929.932606,
+          "latency_ms": 1.623
+        },
+        "track_exposure_async_commit": {
+          "tps": 94241.725695,
+          "latency_ms": 0.085
+        }
+      },
+      {
+        "clients": 32,
+        "track_exposure": {
+          "tps": 29803.926046,
+          "latency_ms": 1.074
+        },
+        "plain_insert": {
+          "tps": 32261.542993,
+          "latency_ms": 0.992
+        },
+        "variant": {
+          "tps": 20297.551603,
+          "latency_ms": 1.577
+        },
+        "track_variant": {
+          "tps": 13516.979123,
+          "latency_ms": 2.367
+        },
+        "track_exposure_async_commit": {
+          "tps": 113036.52412,
+          "latency_ms": 0.283
+        }
+      }
+    ],
+    "bulk_enqueue_per_s": 188768.02519284002,
+    "queue_bytes_1m": 131776512,
+    "claim_events_per_s": 186240.49046212994,
+    "cli_sender_events_per_s_1": 131187.1414354479,
+    "cli_sender_events_1": 700000,
+    "cli_sender_events_per_s_4": 268473.45189704647,
+    "cli_sender_events_4": 700000,
+    "queue_bytes_after_drain_vacuum": 38223872
+  },
+  "in_db_sync": {
+    "http": {
+      "unchanged_run_ms": 22.09165575914085,
+      "change_run_ms": 39.04556389898062
+    },
+    "pg_net": {
+      "unchanged_run_ms": 1031.4787440001965,
+      "change_run_ms": 1021.228760946542
+    }
+  }
+}

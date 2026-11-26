@@ -5,7 +5,8 @@
 -- float8 the way Python's float() does it: correctly rounded, overflow to
 -- +-inf, underflow to +-0.0 (Postgres raises on both).
 CREATE FUNCTION flagsmith._dec_to_float8(s text) RETURNS float8
-LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE AS $$
+LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE
+SET search_path = pg_catalog, flagsmith, pg_temp AS $$
 DECLARE
   m text; e numeric; mant numeric; neg boolean; mag numeric; n numeric;
 BEGIN
@@ -40,7 +41,8 @@ END $$;
 
 -- Python int(x) for a str x: NULL where Python raises ValueError.
 CREATE FUNCTION flagsmith.py_int(t text) RETURNS numeric
-LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE AS $$
+LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE
+SET search_path = pg_catalog, flagsmith, pg_temp AS $$
 DECLARE s text := t;
 BEGIN
   IF octet_length(s) <> length(s) THEN
@@ -54,7 +56,8 @@ END $$;
 
 -- Python float(x) for a str x: NULL where Python raises ValueError.
 CREATE FUNCTION flagsmith.py_float(t text) RETURNS float8
-LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE AS $$
+LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE
+SET search_path = pg_catalog, flagsmith, pg_temp AS $$
 DECLARE s text := t; l text;
 BEGIN
   IF octet_length(s) <> length(s) THEN
@@ -83,7 +86,8 @@ END $$;
 -- dtoa on rounding-interval boundaries, so the digits are recomputed exactly.
 CREATE FUNCTION flagsmith.py_float_repr(f float8) RETURNS text
 LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE
-SET extra_float_digits = 1 AS $$
+SET extra_float_digits = 1
+SET search_path = pg_catalog, flagsmith, pg_temp AS $$
 DECLARE
   t text; neg boolean; x float8; ex numeric; et text; decpt int; p int; sc int;
   lo numeric; hi numeric; ok_lo boolean; ok_hi boolean; ch numeric; digits text; r text; start_p int;
@@ -148,7 +152,8 @@ END $$;
 -- Python repr(str) (best effort: used only for non-scalar values, which the
 -- Flagsmith schema does not allow in traits).
 CREATE FUNCTION flagsmith._py_str_repr(s text) RETURNS text
-LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE AS $$
+LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE
+SET search_path = pg_catalog, flagsmith, pg_temp AS $$
 DECLARE q text; r text := ''; c text; cp int;
 BEGIN
   q := CASE WHEN strpos(s, '''') > 0 AND strpos(s, '"') = 0 THEN '"' ELSE '''' END;
@@ -167,7 +172,8 @@ END $$;
 -- Python str()/repr() of a JSON value parsed by json.loads.
 --   repr = false: str() (top level); repr = true: repr() (inside containers)
 CREATE FUNCTION flagsmith.py_str_json(j json, as_repr boolean DEFAULT false) RETURNS text
-LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE AS $$
+LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE
+SET search_path = pg_catalog, flagsmith, pg_temp AS $$
 DECLARE t text; r text; k text; v json; first boolean := true;
 BEGIN
   IF j IS NULL THEN RETURN 'None'; END IF;
@@ -204,11 +210,22 @@ BEGIN
   END CASE;
 END $$;
 
+CREATE FUNCTION flagsmith.ctxval_str(s text) RETURNS flagsmith.ctxval
+LANGUAGE sql IMMUTABLE PARALLEL SAFE BEGIN ATOMIC
+  SELECT CASE
+    WHEN s IS NULL THEN ROW('n', NULL, NULL, NULL, NULL)::flagsmith.ctxval
+    WHEN s ~ '^-?[0-9]+$' THEN ROW('i', NULL, s::numeric, NULL, NULL)::flagsmith.ctxval
+    WHEN s ~ '^-?[0-9]+\.[0-9]+$' THEN ROW('f', NULL, NULL, flagsmith._dec_to_float8(s), NULL)::flagsmith.ctxval
+    ELSE ROW('s', s, NULL, NULL, NULL)::flagsmith.ctxval
+  END
+;
+END;
+
 -- A JSON value mapped to a context value, as map_any_value_to_context_value() does
 -- for values read by trait name: numeric-looking strings become int/float,
 -- containers become their Python str().
 CREATE FUNCTION flagsmith.ctxval(v jsonb) RETURNS flagsmith.ctxval
-LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
+LANGUAGE sql IMMUTABLE PARALLEL SAFE BEGIN ATOMIC
   SELECT CASE jsonb_typeof(v)
     WHEN 'string' THEN flagsmith.ctxval_str(v #>> '{}')
     WHEN 'number' THEN
@@ -220,29 +237,21 @@ LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
     WHEN 'array'  THEN ROW('s', flagsmith.py_str_json(v::json), NULL, NULL, NULL)::flagsmith.ctxval
     ELSE ROW('n', NULL, NULL, NULL, NULL)::flagsmith.ctxval
   END
-$$;
+;
+END;
 
 -- Same, for a value reached through a JSONPath query: non-scalars are None.
 CREATE FUNCTION flagsmith.ctxval_jp(v jsonb) RETURNS flagsmith.ctxval
-LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
+LANGUAGE sql IMMUTABLE PARALLEL SAFE BEGIN ATOMIC
   SELECT CASE WHEN jsonb_typeof(v) IN ('object', 'array')
               THEN ROW('n', NULL, NULL, NULL, NULL)::flagsmith.ctxval
               ELSE flagsmith.ctxval(v) END
-$$;
-
-CREATE FUNCTION flagsmith.ctxval_str(s text) RETURNS flagsmith.ctxval
-LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
-  SELECT CASE
-    WHEN s IS NULL THEN ROW('n', NULL, NULL, NULL, NULL)::flagsmith.ctxval
-    WHEN s ~ '^-?[0-9]+$' THEN ROW('i', NULL, s::numeric, NULL, NULL)::flagsmith.ctxval
-    WHEN s ~ '^-?[0-9]+\.[0-9]+$' THEN ROW('f', NULL, NULL, flagsmith._dec_to_float8(s), NULL)::flagsmith.ctxval
-    ELSE ROW('s', s, NULL, NULL, NULL)::flagsmith.ctxval
-  END
-$$;
+;
+END;
 
 -- Python str() of a context value.
 CREATE FUNCTION flagsmith.py_str(c flagsmith.ctxval) RETURNS text
-LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
+LANGUAGE sql IMMUTABLE PARALLEL SAFE BEGIN ATOMIC
   SELECT CASE c.k
     WHEN 's' THEN c.s
     WHEN 'i' THEN c.n::text
@@ -250,11 +259,13 @@ LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
     WHEN 'b' THEN CASE WHEN c.b THEN 'True' ELSE 'False' END
     ELSE 'None'
   END
-$$;
+;
+END;
 
 -- The exact value of a finite float8 as numeric (float8::numeric rounds to 15 digits).
 CREATE FUNCTION flagsmith._float8_exact(f float8) RETURNS numeric
-LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE AS $$
+LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE
+SET search_path = pg_catalog, flagsmith, pg_temp AS $$
 DECLARE b bytea := float8send(f); hi bigint; lo bigint; e int; m numeric; neg boolean; r numeric; t text;
 BEGIN
   hi := (get_byte(b,0)::bigint << 24) | (get_byte(b,1) << 16) | (get_byte(b,2) << 8) | get_byte(b,3);
@@ -283,7 +294,8 @@ END $$;
 -- Python's float modulo x % d (fmod, then the sign of the divisor). NULL where
 -- Python raises (zero divisor).
 CREATE FUNCTION flagsmith.py_fmod(x float8, d float8) RETURNS float8
-LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE AS $$
+LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE
+SET search_path = pg_catalog, flagsmith, pg_temp AS $$
 DECLARE r float8; xn numeric; dn numeric;
 BEGIN
   IF d = 0 THEN RETURN NULL; END IF;

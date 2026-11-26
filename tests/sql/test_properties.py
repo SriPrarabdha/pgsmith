@@ -46,7 +46,14 @@ def test_idempotent_load(cur, env_key):
     b = load(cur, ctx_with(env_key, True))
     assert a == b
     cur.execute("SELECT outcome FROM flagsmith.load_log WHERE env_key = %s ORDER BY load_id", (env_key,))
-    assert [r[0] for r in cur.fetchall()] == ["loaded", "unchanged"]
+    assert [r[0] for r in cur.fetchall()] == ["loaded"]  # an unchanged poll is not a load
+    cur.execute("SELECT last_checked_at IS NOT NULL FROM flagsmith.environment WHERE env_key = %s", (env_key,))
+    assert cur.fetchone()[0]
+    cur.execute("SELECT * FROM flagsmith.apply_context(%s::json)", (json.dumps(ctx_with(env_key, True)),))
+    assert cur.fetchone() == (a, "unchanged")
+    cur.execute("SELECT * FROM flagsmith.apply_context(%s::json)", (json.dumps(ctx_with(env_key, False)),))
+    c, outcome = cur.fetchone()
+    assert c != a and outcome == "loaded"
 
 
 def test_reload_back_to_previous_content_reuses_snapshot(cur, env_key):
@@ -269,3 +276,45 @@ def test_flagshift_plan_and_overlap(cur, env_key):
     same = {r[0]: r for r in cur.execute("SELECT * FROM flagsmith.cohort_overlap(%s, %s, 'pop')", (live, cand)).fetchall()}
     assert same["f0"][4] == 100                                    # same keys: the same people
     cur.execute("DROP TABLE pop")
+
+
+def test_many_identity_overrides_load_fast_and_evaluate_like_the_sdk(cur, env_key):
+    """The set-based identity-override path: thousands of identities, overrides with
+    priorities, metadata and variants, string and list IN values."""
+    import time
+    from flag_engine.engine import get_evaluation_result
+
+    ctx = ctx_with(env_key, False, n_features=6)
+    io = {}
+    for i in range(2000):
+        ident = f"user-{i}"
+        ovs = [{"key": "", "name": f"f{i % 6}", "enabled": i % 2 == 0, "value": f"io-{i}",
+                "priority": "-Infinity", "metadata": {"id": i % 6}}]
+        if i % 7 == 0:   # a second override of the same feature: the lower priority wins
+            ovs.append({"key": "", "name": f"f{i % 6}", "enabled": True, "value": f"io2-{i}", "priority": -5})
+        if i % 11 == 0:  # variants (the SDK never writes these for identities)
+            ovs.append({"key": "77", "name": "f5", "enabled": True, "value": "base",
+                        "variants": [{"value": "va", "weight": 50, "priority": 1}], "priority": 3})
+        io[ident] = {"key": "identity_overrides", "name": "identity_overrides",
+                     "rules": [{"type": "ALL" if i % 3 else "ANY", "conditions": [
+                         {"property": "$.identity.identifier", "operator": "IN",
+                          "value": ident if i % 5 == 0 else [ident]}]}],
+                     "overrides": ovs, "metadata": {"source": "identity_overrides"}}
+    t = time.perf_counter()
+    cur.execute("SELECT flagsmith.load_context(%s::json, identity_overrides => %s::json)", (json.dumps(ctx), json.dumps(io)))
+    assert time.perf_counter() - t < 10
+    alias = cur.execute("SELECT alias FROM flagsmith.environments() WHERE env_key = %s", (env_key,)).fetchone()[0]
+    for i in list(range(0, 2000, 37)) + [2001]:
+        ident = f"user-{i}"
+        sdk_ctx = json.loads(json.dumps(ctx))
+        if ident in io:
+            seg = json.loads(json.dumps(io[ident]).replace('"-Infinity"', "-1e999"))
+            sdk_ctx["segments"]["identity_overrides"] = seg
+        sdk_ctx["identity"] = {"identifier": ident, "traits": {}}
+        want = get_evaluation_result(sdk_ctx)["flags"]
+        for q in [f"SELECT * FROM flagsmith.get_flags(%s, '{{}}', '{env_key}')",
+                  f"SELECT * FROM flagsmith_c.flags_{alias}(%s, '{{}}')"]:
+            got = {r[0]: r for r in cur.execute(q, (ident,)).fetchall()}
+            for name, f in want.items():
+                assert (got[name][1], got[name][2], got[name][3], got[name][4]) == \
+                    (f["enabled"], f["value"], f.get("variant"), f["reason"]), (ident, name, q)

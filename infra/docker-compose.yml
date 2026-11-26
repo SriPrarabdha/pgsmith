@@ -1,4 +1,6 @@
-# Local stack for pg_flagsmith development and the demos:
+# Local stack for pg_flagsmith development and the demos. Development credentials only:
+# every port is bound to 127.0.0.1; do not expose this stack.
+#
 #   flagsmith       self-hosted Flagsmith (API + UI) on http://localhost:8000, experimentation on
 #   flagsmith-db    Flagsmith's own Postgres
 #   appdb           the application database: Supabase's Postgres image (pg_tle preinstalled)
@@ -72,7 +74,9 @@ services:
     build:
       context: ..
       dockerfile: tools/Dockerfile
-    command: [pg-flagsmith, serve, --poll, '30', --port, '8080']
+    # local stack only (the port is bound to 127.0.0.1): unsigned webhooks are accepted when no
+    # secret is set; in production set FLAGSMITH_WEBHOOK_SECRET and drop --allow-unsigned-webhooks
+    command: [pg-flagsmith, serve, --host, 0.0.0.0, --poll, '30', --port, '8080', --allow-unsigned-webhooks]
     environment:
       PGFS_DSN: postgresql://postgres:pgfs@appdb:5432/postgres
       FLAGSMITH_API_URL: http://flagsmith:8000/api/v1/

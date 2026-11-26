@@ -7,7 +7,8 @@
 
 CREATE FUNCTION flagsmith.jsonpath_parse(q text,
   OUT ok boolean, OUT singular boolean, OUT segs text[])
-LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE AS $$
+LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE
+SET search_path = pg_catalog, flagsmith, pg_temp AS $$
 DECLARE
   chars text[] := regexp_split_to_array(q, '');
   n int := cardinality(chars);
@@ -175,7 +176,8 @@ END $$;
 -- Walk a parsed path ('.name' / '#index' elements) through a json value, the way
 -- an RFC 9535 singular query selects one node. NULL when nothing is selected.
 CREATE FUNCTION flagsmith.json_walk(j json, segs text[]) RETURNS json
-LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE AS $$
+LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE
+SET search_path = pg_catalog, flagsmith, pg_temp AS $$
 DECLARE s text; idx bigint; len int;
 BEGIN
   IF segs IS NULL THEN RETURN j; END IF;
@@ -197,7 +199,8 @@ BEGIN
 END $$;
 
 CREATE FUNCTION flagsmith.jsonb_walk(j jsonb, segs text[]) RETURNS jsonb
-LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE AS $$
+LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE
+SET search_path = pg_catalog, flagsmith, pg_temp AS $$
 DECLARE s text; idx bigint; len int;
 BEGIN
   IF segs IS NULL THEN RETURN j; END IF;

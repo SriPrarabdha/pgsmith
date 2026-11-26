@@ -9,7 +9,7 @@ dependencies = [
   "psycopg[binary]>=3.2",
   "flagsmith==6.7.0",
   "flagsmith-flag-engine==11.1.2",
-  "requests>=2.31",
+  "requests>=2.32.4",                   # CVE-2024-35195, CVE-2024-47081
 ]
 
 [project.optional-dependencies]
@@ -18,6 +18,8 @@ dev = [
   "pytest-xdist>=3.5",
   "hypothesis>=6.100",
   "json5>=0.9",
+  "pip-audit>=2.7",
+  "bandit>=1.7",
 ]
 
 [project.scripts]

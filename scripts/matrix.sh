@@ -33,7 +33,7 @@ for t in "${targets[@]}"; do
   fi
   v=$(dock "docker exec $name psql -AtX -U postgres -d $db -c 'select version()'" | cut -d' ' -f1-2)
   coll=$(dock "docker exec $name psql -AtX -U postgres -d $db -c 'select datcollate from pg_database where datname = current_database()'")
-  res=$(PGFS_DSN=postgresql://postgres:pgfs@127.0.0.1:$port/$db timeout 1200 .venv/bin/python -m pytest tests/conformance tests/sql -p no:warnings 2>&1 | grep -E "passed|failed|error" | tail -1)
+  res=$(PGFS_CONTAINER=$name PGFS_DSN=postgresql://postgres:pgfs@127.0.0.1:$port/$db timeout 1800 .venv/bin/python -m pytest tests/conformance tests/sql tests/tools -p no:warnings 2>&1 | grep -E "passed|failed|error" | tail -1)
   echo "$t | $v | collate=$coll | $res"
   [ "${KEEP:-0}" = 1 ] || dock "docker rm -f $name" >/dev/null 2>&1
 done

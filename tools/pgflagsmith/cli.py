@@ -2,13 +2,14 @@
 
   pg-flagsmith sync    --once | --poll SECONDS      mirror environments into Postgres
   pg-flagsmith serve   [--port 8080] [--poll 30]    webhook receiver + polling backstop
+  pg-flagsmith events  --once | --poll SECONDS      deliver queued exposures/events to Flagsmith
   pg-flagsmith parity  --population SQL [--sample N] live check against the official SDK
   pg-flagsmith install [--tle]                      install the extension into a database
   pg-flagsmith health                               flagsmith.health() as a table
 
 Configuration comes from flags or the environment: PGFS_DSN, FLAGSMITH_API_URL,
 FLAGSMITH_SERVER_KEYS (comma-separated server-side environment keys),
-FLAGSMITH_WEBHOOK_SECRET.
+FLAGSMITH_WEBHOOK_SECRET, FLAGSMITH_EVENTS_URL.
 """
 from __future__ import annotations
 
@@ -50,9 +51,22 @@ def main(argv: list[str] | None = None) -> int:
 
     s = sub.add_parser("serve", help="webhook receiver with a polling backstop")
     _common(s)
+    s.add_argument("--host", default=os.environ.get("HOST", "127.0.0.1"),
+                   help="address to listen on (0.0.0.0 in a container)")
     s.add_argument("--port", type=int, default=int(os.environ.get("PORT", "8080")))
     s.add_argument("--poll", type=float, default=30)
     s.add_argument("--webhook-secret", default=os.environ.get("FLAGSMITH_WEBHOOK_SECRET", ""))
+    s.add_argument("--allow-unsigned-webhooks", action="store_true",
+                   help="accept webhook calls without a signature (they only trigger a sync)")
+
+    s = sub.add_parser("events", help="deliver queued exposures and events to Flagsmith")
+    _common(s)
+    g = s.add_mutually_exclusive_group()
+    g.add_argument("--once", action="store_true", default=True)
+    g.add_argument("--poll", type=float, metavar="SECONDS")
+    s.add_argument("--events-url", default=os.environ.get("FLAGSMITH_EVENTS_URL"),
+                   help="events endpoint (default: <api>/events, or events.api.flagsmith.com for Flagsmith SaaS)")
+    s.add_argument("--batch-size", type=int, default=1000)
 
     s = sub.add_parser("parity", help="compare pg_flagsmith with the official SDK on real identities")
     _common(s)
@@ -85,8 +99,12 @@ def main(argv: list[str] | None = None) -> int:
             time.sleep(a.poll)
     if a.cmd == "serve":
         from .sync import Syncer, serve
-        serve(Syncer(a.dsn, a.api, _keys(a)), a.port, a.poll, a.webhook_secret)
+        serve(Syncer(a.dsn, a.api, _keys(a)), a.port, a.poll, a.webhook_secret, host=a.host,
+              allow_unsigned=a.allow_unsigned_webhooks)
         return 0
+    if a.cmd == "events":
+        from . import events
+        return events.run(a.dsn, a.api, _keys(a), a.poll, events_url=a.events_url, batch_size=a.batch_size)
     if a.cmd == "parity":
         from . import parity
         rc = 0

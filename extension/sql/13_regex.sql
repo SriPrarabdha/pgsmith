@@ -13,14 +13,15 @@
 --     'unsupported'; patterns Python itself rejects are reported as 'invalid'.
 
 CREATE FUNCTION flagsmith._re_chr(cp int) RETURNS text
-LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE AS $$
+LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE BEGIN ATOMIC
   SELECT CASE WHEN cp <= 65535 THEN '\u' || lpad(to_hex(cp), 4, '0')
               ELSE '\U' || lpad(to_hex(cp), 8, '0') END
-$$;
+;
+END;
 
 -- bracket-expression body for a Python class shorthand
 CREATE FUNCTION flagsmith._re_shorthand(c text, ascii_only boolean) RETURNS text
-LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE AS $$
+LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE BEGIN ATOMIC
   SELECT CASE
     WHEN NOT ascii_only THEN flagsmith._re_class(c)
     WHEN c = 'd' THEN '0-9'
@@ -30,14 +31,16 @@ LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE AS $$
     WHEN c = 'W' THEN '\u0001-/:-@[-^`{-\U0010ffff'
     WHEN c = 'S' THEN '\u0001-\u0008\u000e-\u001f!-\U0010ffff'
   END
-$$;
+;
+END;
 
 -- Parse one escape starting at chars[i] = '\'. Returns kind:
 --   'char' (cp), 'class' (cls), 'anchor' (cls in A Z b B), 'backref' (cp = group),
 --   'named_backref' never here, 'error', 'unsupported'.
 CREATE FUNCTION flagsmith._re_escape(chars text[], i int, in_class boolean,
   OUT kind text, OUT cp int, OUT cls text, OUT next_i int, OUT err text)
-LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE AS $$
+LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE
+SET search_path = pg_catalog, flagsmith, pg_temp AS $$
 DECLARE
   n int := cardinality(chars);
   c text;
@@ -128,22 +131,25 @@ BEGIN
 END $$;
 
 CREATE FUNCTION flagsmith._re_octal(d text) RETURNS int
-LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE AS $$
+LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE BEGIN ATOMIC
   SELECT sum((substr(d, k, 1)::int) * (8 ^ (length(d) - k))::int)::int
   FROM generate_series(1, length(d)) k
-$$;
+;
+END;
 
 -- literal character outside a bracket expression
 CREATE FUNCTION flagsmith._re_lit(cp int) RETURNS text
-LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE AS $$
+LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE BEGIN ATOMIC
   SELECT CASE
     WHEN cp BETWEEN 48 AND 57 OR cp BETWEEN 65 AND 90 OR cp BETWEEN 97 AND 122 THEN chr(cp)
     ELSE flagsmith._re_chr(cp) END
-$$;
+;
+END;
 
 CREATE FUNCTION flagsmith.py_regex_to_are(p text,
   OUT pattern text, OUT status text, OUT detail text)
-LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE AS $$
+LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE
+SET search_path = pg_catalog, flagsmith, pg_temp AS $$
 DECLARE
   chars text[] := CASE WHEN p = '' THEN '{}'::text[] ELSE regexp_split_to_array(p, '') END;
   n int := cardinality(chars);
@@ -532,7 +538,8 @@ END $$;
 
 -- Is chars[i] = '{' the start of a valid Python repeat bound: {m}, {m,}, {,n}, {m,n}, {,}?
 CREATE FUNCTION flagsmith._re_is_bound(chars text[], i int) RETURNS boolean
-LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE AS $$
+LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE
+SET search_path = pg_catalog, flagsmith, pg_temp AS $$
 DECLARE k int := i + 1; n int := cardinality(chars);
 BEGIN
   IF k <= n AND chars[k] = '}' THEN RETURN false; END IF;
@@ -546,7 +553,8 @@ END $$;
 
 -- Does a translated pattern compile in Postgres?
 CREATE FUNCTION flagsmith._re_compiles(are text) RETURNS boolean
-LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE AS $$
+LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE
+SET search_path = pg_catalog, flagsmith, pg_temp AS $$
 BEGIN
   PERFORM '' ~ are;
   RETURN true;
@@ -556,7 +564,8 @@ END $$;
 
 -- Python re.match(p, s) is not None, for patterns that translate.
 CREATE FUNCTION flagsmith.py_re_match(p text, s text) RETURNS boolean
-LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE AS $$
+LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE
+SET search_path = pg_catalog, flagsmith, pg_temp AS $$
 DECLARE t record;
 BEGIN
   t := flagsmith.py_regex_to_are(p);

@@ -33,7 +33,8 @@ SET parallel_setup_cost = 10
 SET parallel_tuple_cost = 0.01
 SET min_parallel_table_scan_size = '64kB'
 -- JIT compiling the generated expression trees costs ~seconds per query and saves nothing
-SET jit = off AS $$
+SET jit = off
+SET search_path = pg_catalog, flagsmith, pg_temp AS $$
 DECLARE l bigint := coalesce(live, flagsmith._snapshot_for(env, NULL));
 BEGIN
   IF flagsmith._eval_sql(candidate) IS NULL THEN
@@ -60,7 +61,7 @@ CREATE FUNCTION flagsmith.plan(env text, candidate bigint, population regclass, 
 RETURNS TABLE (
   feature text, users bigint, users_changed bigint, turned_on bigint, turned_off bigint,
   value_changes bigint, variant_moves bigint, sample_identities text[])
-LANGUAGE sql STABLE AS $$
+LANGUAGE sql STABLE BEGIN ATOMIC
   WITH d AS MATERIALIZED (SELECT * FROM flagsmith.plan_diff(env, candidate, population, live))
   SELECT d.feature, sum(d.users)::bigint,
          coalesce(sum(d.users) FILTER (WHERE d.changed), 0)::bigint,
@@ -73,7 +74,8 @@ LANGUAGE sql STABLE AS $$
   FROM d
   GROUP BY d.feature
   ORDER BY 3 DESC, 1
-$$;
+;
+END;
 
 -- Cohort overlap of a feature between two snapshots (e.g. staging and
 -- production): of the identities served `value`/variant in A, how many get the
@@ -87,7 +89,8 @@ SET parallel_setup_cost = 10
 SET parallel_tuple_cost = 0.01
 SET min_parallel_table_scan_size = '64kB'
 -- JIT compiling the generated expression trees costs ~seconds per query and saves nothing
-SET jit = off AS $$
+SET jit = off
+SET search_path = pg_catalog, flagsmith, pg_temp AS $$
 BEGIN
   -- one pass over the population for every feature (or just only_feature); an identity
   -- is "targeted" when a segment, split or identity override serves it the flag enabled

@@ -38,11 +38,12 @@ CREATE FUNCTION flagsmith.get_flags(
   snapshot_id bigint DEFAULT NULL,
   identity_key text DEFAULT NULL)
 RETURNS SETOF flagsmith.flag_result
-LANGUAGE sql STABLE PARALLEL SAFE AS $$
+LANGUAGE sql STABLE PARALLEL SAFE BEGIN ATOMIC
   SELECT * FROM unnest((flagsmith._interp(flagsmith._snapshot_for(env, snapshot_id),
                                           identifier IS NOT NULL, identifier, identity_key,
                                           coalesce(traits, '{}'::jsonb), identifier IS NULL)).flags)
-$$;
+;
+END;
 
 -- The segments an identity belongs to.
 CREATE FUNCTION flagsmith.get_segments(
@@ -52,11 +53,12 @@ CREATE FUNCTION flagsmith.get_segments(
   snapshot_id bigint DEFAULT NULL,
   identity_key text DEFAULT NULL)
 RETURNS SETOF flagsmith.segment_result
-LANGUAGE sql STABLE PARALLEL SAFE AS $$
+LANGUAGE sql STABLE PARALLEL SAFE BEGIN ATOMIC
   SELECT * FROM unnest((flagsmith._interp(flagsmith._snapshot_for(env, snapshot_id),
                                           true, identifier, identity_key,
                                           coalesce(traits, '{}'::jsonb), false)).segments)
-$$;
+;
+END;
 
 -- Engine-compatible evaluation of a whole EvaluationContext: returns what
 -- flag_engine.get_evaluation_result(context) returns, as JSON. The context is
@@ -126,15 +128,17 @@ CREATE FUNCTION flagsmith.get_flag(
   snapshot_id bigint DEFAULT NULL,
   identity_key text DEFAULT NULL)
 RETURNS flagsmith.flag_result
-LANGUAGE sql STABLE PARALLEL SAFE AS $$
+LANGUAGE sql STABLE PARALLEL SAFE BEGIN ATOMIC
   SELECT f FROM flagsmith.get_flags(identifier, traits, env, snapshot_id, identity_key) f
   WHERE f.feature = get_flag.feature
-$$;
+;
+END;
 
 CREATE FUNCTION flagsmith.is_enabled(feature text, identifier text DEFAULT NULL, traits jsonb DEFAULT NULL,
                                      env text DEFAULT NULL)
 RETURNS boolean
-LANGUAGE plpgsql STABLE PARALLEL SAFE AS $$
+LANGUAGE plpgsql STABLE PARALLEL SAFE
+SET search_path = pg_catalog, flagsmith, pg_temp AS $$
 DECLARE r boolean;
 BEGIN
   IF env IS NULL AND identifier IS NOT NULL THEN
@@ -148,7 +152,8 @@ END $$;
 CREATE FUNCTION flagsmith.value(feature text, identifier text DEFAULT NULL, traits jsonb DEFAULT NULL,
                                 env text DEFAULT NULL)
 RETURNS jsonb
-LANGUAGE plpgsql STABLE PARALLEL SAFE AS $$
+LANGUAGE plpgsql STABLE PARALLEL SAFE
+SET search_path = pg_catalog, flagsmith, pg_temp AS $$
 DECLARE r jsonb;
 BEGIN
   IF env IS NULL AND identifier IS NOT NULL THEN
@@ -164,7 +169,8 @@ END $$;
 CREATE FUNCTION flagsmith.variant(feature text, identifier text, traits jsonb DEFAULT NULL,
                                   env text DEFAULT NULL)
 RETURNS text
-LANGUAGE plpgsql STABLE PARALLEL SAFE AS $$
+LANGUAGE plpgsql STABLE PARALLEL SAFE
+SET search_path = pg_catalog, flagsmith, pg_temp AS $$
 DECLARE r text;
 BEGIN
   IF env IS NULL THEN
@@ -180,12 +186,14 @@ END $$;
 -- snapshot compiles, otherwise these interpreter wrappers.
 CREATE FUNCTION flagsmith.flags(identifier text, traits jsonb DEFAULT '{}', identity_key text DEFAULT NULL)
 RETURNS SETOF flagsmith.flag_result
-LANGUAGE sql STABLE PARALLEL SAFE AS $$
+LANGUAGE sql STABLE PARALLEL SAFE BEGIN ATOMIC
   SELECT * FROM flagsmith.get_flags(identifier, traits, NULL, NULL, identity_key)
-$$;
+;
+END;
 
 CREATE FUNCTION flagsmith.flag(feature text, identifier text, traits jsonb DEFAULT '{}', identity_key text DEFAULT NULL)
 RETURNS SETOF flagsmith.flag_result
-LANGUAGE sql STABLE PARALLEL SAFE AS $$
+LANGUAGE sql STABLE PARALLEL SAFE BEGIN ATOMIC
   SELECT * FROM flagsmith.get_flags(identifier, traits, NULL, NULL, identity_key) f WHERE f.feature = flag.feature
-$$;
+;
+END;
