@@ -76,7 +76,12 @@ def apply_candidate(conn, a, result: dict) -> None:
             state = fs.get(f"environments/{env_key}/featurestates/{fs_id}/")
             mv = [{**m, "percentage_allocation": cw.get(m["id"], m["percentage_allocation"])}
                   for m in state.get("multivariate_feature_state_values", [])]
-            fs.patch(f"environments/{env_key}/featurestates/{fs_id}/", {"multivariate_feature_state_values": mv})
+            # A PATCH to environments/<key>/featurestates/ answers 200 but ignores nested weights
+            # (Flagsmith 2.295): PUT the whole state to features/featurestates/ instead.
+            fs.put(f"features/featurestates/{fs_id}/", {
+                "enabled": state["enabled"], "feature": state["feature"], "environment": state["environment"],
+                "feature_state_value": _feature_state_value(state.get("feature_state_value")),
+                "multivariate_feature_state_values": mv})
         elif kind == "override":
             _, _, fs_id, enabled, value = op
             fs.patch(f"features/featurestates/{fs_id}/", {"enabled": enabled, "feature_state_value": _feature_state_value(value),
