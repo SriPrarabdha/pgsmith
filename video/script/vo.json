@@ -1,7 +1,7 @@
 [
  {
   "id": "cold",
-  "text": "This is a Flagsmith feature flag... evaluated inside Postgres. No SDK. No network call. Just SQL."
+  "text": "This is a Flagsmith feature flag, evaluated inside Postgres. No SDK. No network call. Just SQL."
  },
  {
   "id": "title",
@@ -41,7 +41,7 @@
  },
  {
   "id": "twist",
-  "text": "And a twist: the same twenty-five percent rollout in staging and production picks different people. Only a quarter overlap. Flag Shift re-keys the plan, so it's exact."
+  "text": "And a twist: the same twenty-five percent rollout in staging and production picks different people. Only a quarter overlap."
  },
  {
   "id": "apply",
@@ -49,7 +49,7 @@
  },
  {
   "id": "proof",
-  "text": "Same answers as Flagsmith? It passes all two hundred thirty of Flagsmith's engine tests, and matches the official engine on five thousand random configurations. And it's fast: a million users times fifty flags, in six seconds."
+  "text": "It passes all two hundred thirty of Flagsmith's engine tests, and matches the official engine on five thousand random configurations. And it's fast: a million users times fifty flags, in six seconds."
  },
  {
   "id": "outro",

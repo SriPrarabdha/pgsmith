@@ -1,3 +1,4 @@
+.env
 demos/.env
 demos/.seed.json
 .venv/

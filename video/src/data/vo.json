@@ -1,72 +1,72 @@
 {
  "cold": {
   "file": "vo/cold.wav",
-  "seconds": 8.853,
-  "text": "This is a Flagsmith feature flag... evaluated inside Postgres. No SDK. No network call. Just SQL."
+  "seconds": 8.629,
+  "text": "This is a Flagsmith feature flag, evaluated inside Postgres. No SDK. No network call. Just SQL."
  },
  "title": {
   "file": "vo/title.wav",
-  "seconds": 1.402,
+  "seconds": 1.468,
   "text": "Meet P G smith."
  },
  "problem": {
   "file": "vo/problem.wav",
-  "seconds": 16.254,
+  "seconds": 17.226,
   "text": "Your app reads flags through Flagsmith's SDK. But so much of your product lives in the database: search ranking, row-level security, nightly jobs, reports. None of it can see your flags. And every flip goes live for everyone, with no review step."
  },
  "solution": {
   "file": "vo/solution.wav",
-  "seconds": 14.146,
+  "seconds": 15.371,
   "text": "P G smith keeps a live replica of your Flagsmith environments inside Postgres, compiled into plain SQL. Flip a flag in Flagsmith... and Postgres has it in under a second. No extra service: the database syncs itself."
  },
  "steps": {
   "file": "vo/steps.wav",
-  "seconds": 5.151,
+  "seconds": 5.308,
   "text": "A Flagsmith experiment takes four steps. Let's run all four, from SQL."
  },
  "step1": {
   "file": "vo/step1.wav",
-  "seconds": 17.356,
+  "seconds": 16.424,
   "text": "Step one: a multivariate flag. Search ranking: control, or boosted by thirty-day sales, split fifty-fifty. In Postgres, one function call picks the arm, and the same query ranks with it. Two users. Two rankings. One query."
  },
  "step2": {
   "file": "vo/step2.wav",
-  "seconds": 7.525,
+  "seconds": 8.071,
   "text": "Step two: pick the metrics. Clicks and add to cart, with search latency as a guardrail, recorded straight from SQL."
  },
  "step3": {
   "file": "vo/step3.wav",
-  "seconds": 20.724,
+  "seconds": 21.934,
   "text": "Step three: split the traffic. Postgres queues the exposures and ships them to Flagsmith. Bucketing matches the SDK exactly: ten thousand identities, zero mismatches. Simulated traffic, real statistics: boosted lifts clicks twenty-three percent, add to cart sixty-four. Latency stays flat."
  },
  "step4": {
   "file": "vo/step4.wav",
-  "seconds": 8.196,
+  "seconds": 8.581,
   "text": "Step four: ship the winner. Complete the experiment in Flagsmith, roll out boosted to everyone, and the SQL never changes."
  },
  "release": {
   "file": "vo/release.wav",
-  "seconds": 16.255,
+  "seconds": 18.545,
   "text": "A release is rarely one flag: ours also promotes a new checkout from staging. Flag Shift, a terraform plan for flags, runs both configurations over all hundred thousand users, and catches this: four thousand four hundred twenty-six enterprise accounts would lose their checkout."
  },
  "twist": {
   "file": "vo/twist.wav",
-  "seconds": 10.748,
-  "text": "And a twist: the same twenty-five percent rollout in staging and production picks different people. Only a quarter overlap. Flag Shift re-keys the plan, so it's exact."
+  "seconds": 8.528,
+  "text": "And a twist: the same twenty-five percent rollout in staging and production picks different people. Only a quarter overlap."
  },
  "apply": {
   "file": "vo/apply.wav",
-  "seconds": 12.011,
+  "seconds": 12.039,
   "text": "Fix the order, and apply. Flagsmith updates, Postgres syncs, and a re-plan proves nothing else moved. And if Flagsmith goes down, Postgres keeps serving the last good configuration."
  },
  "proof": {
   "file": "vo/proof.wav",
-  "seconds": 14.681,
-  "text": "Same answers as Flagsmith? It passes all two hundred thirty of Flagsmith's engine tests, and matches the official engine on five thousand random configurations. And it's fast: a million users times fifty flags, in six seconds."
+  "seconds": 14.022,
+  "text": "It passes all two hundred thirty of Flagsmith's engine tests, and matches the official engine on five thousand random configurations. And it's fast: a million users times fifty flags, in six seconds."
  },
  "outro": {
   "file": "vo/outro.wav",
-  "seconds": 8.676,
+  "seconds": 8.369,
   "text": "P G smith. Pure SQL, for Supabase, R D S, and any Postgres. Flagsmith flags, where your data lives."
  }
 }

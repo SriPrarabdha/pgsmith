@@ -15,7 +15,7 @@ export const Twist: React.FC = () => {
   const sAt = cue('twist', 'rollout in staging') - 4;
   const pAt = cue('twist', 'production picks') - 2;
   const oAt = cue('twist', 'Only a quarter') - 4;
-  const kAt = cue('twist', 'Flag Shift re-keys') - 4;
+  const kAt = cue('twist', 'Only a quarter') + 20; // the re-keying note follows the overlap
   const stg = dots.staging, prd = dots.production;
   const nS = [...stg].filter(c => c === '1').length, nP = [...prd].filter(c => c === '1').length;
   const nB = [...stg].filter((c, i) => c === '1' && prd[i] === '1').length;
