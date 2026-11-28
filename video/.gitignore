@@ -1,6 +1,8 @@
 # generated or downloaded; see README.md for how to recreate each
 node_modules/
-out/
+out/*
+!out/pgsmith-launch.mp4
+!out/thumbnail.png
 # database dumps of the local stack (they contain Flagsmith server keys)
 backup/
 # venvs and model weights (Ming 3 GB, Whisper, UTMOS)
